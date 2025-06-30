@@ -28,11 +28,17 @@ const getStyles = () => ({
   resizeHandle: css`
     position: absolute;
     top: 0;
-    width: 6px;
+    width: 8px;
     height: 100%;
-    background: rgba(0, 123, 255, 0.2);
+    background: linear-gradient(to right, rgba(0, 123, 255, 0.4), rgba(0, 123, 255, 0.2));
+    border: 1px solid rgba(0, 123, 255, 0.8);
     cursor: ew-resize;
     z-index: 11;
+    box-shadow: 0 0 4px rgba(0, 123, 255, 0.5);
+    transition: background 0.2s;
+    &:hover {
+      background: rgba(0, 123, 255, 0.6);
+    }
   `,
   controlRow: css`
     display: flex;
