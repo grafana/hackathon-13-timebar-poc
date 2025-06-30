@@ -8,6 +8,7 @@ interface Props {
   now: number;
   uplotRef: React.MutableRefObject<uPlot | null>;
   timelineRange: AbsoluteTimeRange;
+  visibleRange: AbsoluteTimeRange;
   setVisibleRange: (r: AbsoluteTimeRange) => void;
   onClose: () => void;
 }
@@ -26,11 +27,12 @@ export const ContextWindowSelector: React.FC<Props> = ({
   now,
   uplotRef,
   timelineRange,
+  visibleRange,
   setVisibleRange,
   onClose,
 }) => {
-  const [fromText, setFromText] = useState<string>(dateTime(timelineRange.from).toISOString());
-  const [toText, setToText] = useState<string>(dateTime(timelineRange.to).toISOString());
+  const [fromText, setFromText] = useState<string>(dateTime(visibleRange.from).toISOString());
+  const [toText, setToText] = useState<string>(dateTime(visibleRange.to).toISOString());
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);

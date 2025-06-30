@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect, useLayoutEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   PanelProps,
   AbsoluteTimeRange,
@@ -290,64 +290,67 @@ export const SimplePanel: React.FC<Props> = ({
   return (
     <div className={cx(styles.wrapper)} style={{ width, height }}>
       <div className={styles.controlRow}>
-        <>
-          <IconButton
-            name="calendar-alt"
-            tooltip="Set context window"
-            onClick={(e) => setAnchorEl(e.currentTarget)}
+        <IconButton
+          name="calendar-alt"
+          tooltip="Set context window"
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+        />
+        {anchorEl && (
+          <Popover
+            referenceElement={anchorEl}
+            show={true}
+            content={
+              <div className={styles.popoverContent}>
+                <ContextWindowSelector
+                  dashboardFrom={dashboardFrom}
+                  dashboardTo={dashboardTo}
+                  now={now}
+                  uplotRef={uplotRef}
+                  timelineRange={timelineRange}
+                  visibleRange={visibleRange}
+                  setVisibleRange={(r) => {
+                    const visibleSpan = visibleRange.to - visibleRange.from;
+                    const relFrom = (timelineRange.from - visibleRange.from) / visibleSpan;
+                    const relTo = (timelineRange.to - visibleRange.from) / visibleSpan;
+                    const newVisibleFrom = r.from;
+                    const newVisibleTo = r.to;
+                    const newTimelineFrom = newVisibleFrom + relFrom * (newVisibleTo - newVisibleFrom);
+                    const newTimelineTo = newVisibleFrom + relTo * (newVisibleTo - newVisibleFrom);
+                    setTimelineRange({ from: newTimelineFrom, to: newTimelineTo });
+                    setVisibleRange(r, true);
+                  }}
+                  onClose={() => setAnchorEl(null)}
+                />
+              </div>
+            }
           />
-          {anchorEl && (
-            <Popover
-              referenceElement={anchorEl}
-              show={true}
-              content={
-                <div className={styles.popoverContent}>
-                  <ContextWindowSelector
-                    dashboardFrom={dashboardFrom}
-                    dashboardTo={dashboardTo}
-                    now={now}
-                    uplotRef={uplotRef}
-                    timelineRange={timelineRange}
-                    setVisibleRange={(r) => {
-                      const visibleSpan = visibleRange.to - visibleRange.from;
-                      const relFrom = (timelineRange.from - visibleRange.from) / visibleSpan;
-                      const relTo = (timelineRange.to - visibleRange.from) / visibleSpan;
-                      const newVisibleFrom = r.from;
-                      const newVisibleTo = r.to;
-                      const newTimelineFrom = newVisibleFrom + relFrom * (newVisibleTo - newVisibleFrom);
-                      const newTimelineTo = newVisibleFrom + relTo * (newVisibleTo - newVisibleFrom);
-                      setTimelineRange({ from: newTimelineFrom, to: newTimelineTo });
-                      setVisibleRange(r, true);
-                    }}
-                    onClose={() => setAnchorEl(null)}
-                  />
-                </div>
-              }
-            />
-          )}
-        </>
+        )}
         <IconButton tooltip="Pan left" name="arrow-left" onClick={() => panContextWindow('left')} />
         <IconButton tooltip="Zoom out context" name="search-minus" onClick={() => zoomContextWindow(2)} />
         <IconButton tooltip="Zoom in context" name="search-plus" onClick={() => zoomContextWindow(0.5)} />
         <IconButton tooltip="Pan right" name="arrow-right" onClick={() => panContextWindow('right')} />
-        <span style={{ fontSize: 12 }}>
-          {new Date(visibleRange.from).toISOString().replace('T', ' ').slice(0, 19)} to{' '}
-          {new Date(visibleRange.to).toISOString().replace('T', ' ').slice(0, 19)}
-        </span>
       </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
         <UPlotChart data={[timeValues, valueValues]} width={width - 100} height={50} config={builder} />
         {dragStyles.dragOverlayStyle && (
           <>
             <div style={dragStyles.dragOverlayStyle} onMouseDown={(e) => handleDrag(e, 'move')} />
-            <div className={styles.resizeHandle} style={dragStyles.leftHandleStyle} onMouseDown={(e) => {
-              e.stopPropagation();
-              handleDrag(e, 'left');
-            }} />
-            <div className={styles.resizeHandle} style={dragStyles.rightHandleStyle} onMouseDown={(e) => {
-              e.stopPropagation();
-              handleDrag(e, 'right');
-            }} />
+            <div
+              className={styles.resizeHandle}
+              style={dragStyles.leftHandleStyle}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                handleDrag(e, 'left');
+              }}
+            />
+            <div
+              className={styles.resizeHandle}
+              style={dragStyles.rightHandleStyle}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                handleDrag(e, 'right');
+              }}
+            />
           </>
         )}
       </div>
