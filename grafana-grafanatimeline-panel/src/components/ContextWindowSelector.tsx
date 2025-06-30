@@ -33,7 +33,6 @@ export const ContextWindowSelector: React.FC<Props> = ({
   const [toText, setToText] = useState<string>(dateTime(timelineRange.to).toISOString());
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
-
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -42,32 +41,41 @@ export const ContextWindowSelector: React.FC<Props> = ({
         onClose();
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [wrapperRef, onClose]);
 
-  const applyExtraWindow = (duration: string) => {
-    try {
-      const extraWindow = durationToMilliseconds(parseDuration(duration));
-      const newFrom = dashboardFrom - extraWindow;
-      const newTo = Math.min(dashboardTo + extraWindow, now);
-      setVisibleRange({ from: newFrom, to: newTo });
+  const applyWindow = (newRange: AbsoluteTimeRange) => {
+    const percentStart = (timelineRange.from - dashboardFrom) / (dashboardTo - dashboardFrom);
+    const percentEnd = (timelineRange.to - dashboardFrom) / (dashboardTo - dashboardFrom);
 
-      const u = uplotRef.current;
-      if (u) {
-        const left = u.valToPos(newFrom, 'x');
-        const right = u.valToPos(newTo, 'x');
+    setVisibleRange(newRange);
+
+    const u = uplotRef.current;
+    if (u) {
+      requestAnimationFrame(() => {
+        const brushFrom = newRange.from + percentStart * (newRange.to - newRange.from);
+        const brushTo = newRange.from + percentEnd * (newRange.to - newRange.from);
+        const left = u.valToPos(brushFrom, 'x');
+        const right = u.valToPos(brushTo, 'x');
         u.setSelect({
           left,
           top: 0,
           width: right - left,
           height: u.bbox.height,
         });
-      }
-      onClose();
+      });
+    }
+
+    onClose();
+  };
+
+  const applyExtraWindow = (duration: string) => {
+    try {
+      const extraWindow = durationToMilliseconds(parseDuration(duration));
+      const newFrom = dashboardFrom - extraWindow;
+      const newTo = Math.min(dashboardTo + extraWindow, now);
+      applyWindow({ from: newFrom, to: newTo });
     } catch (err) {
       console.error('Failed to parse duration', err);
     }
@@ -78,20 +86,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
       const from = dateTime(fromText).valueOf();
       const to = dateTime(toText).valueOf();
       if (!isNaN(from) && !isNaN(to) && from < to) {
-        setVisibleRange({ from, to });
-
-        const u = uplotRef.current;
-        if (u) {
-          const left = u.valToPos(from, 'x');
-          const right = u.valToPos(to, 'x');
-          u.setSelect({
-            left,
-            top: 0,
-            width: right - left,
-            height: u.bbox.height,
-          });
-        }
-        onClose();
+        applyWindow({ from, to });
       }
     } catch (err) {
       console.error('Failed to parse absolute range', err);

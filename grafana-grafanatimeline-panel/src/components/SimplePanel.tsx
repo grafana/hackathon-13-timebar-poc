@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useLayoutEffect } from 'react';
 import {
   PanelProps,
   AbsoluteTimeRange,
@@ -70,12 +70,64 @@ export const SimplePanel: React.FC<Props> = ({
   const dashboardTo = data.timeRange.to.valueOf();
 
   const [timelineRange, setTimelineRange] = useState({ from: dashboardFrom, to: dashboardTo });
-  const [visibleRange, setVisibleRange] = useState<AbsoluteTimeRange>({
+  const [visibleRange, setVisibleRangeState] = useState<AbsoluteTimeRange>({
     from: dashboardFrom - 7 * 24 * 60 * 60 * 1000,
     to: Math.min(dashboardTo, now),
   });
 
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const suppressNextDashboardUpdate = useRef(false);
+  const isProgrammaticSelect = useRef(false);
+  const skipNextSelectUpdate = useRef(false);
+  const uplotRef = useRef<uPlot | null>(null);
+  const isDragging = useRef(false);
+
+  const [dragStyles, setDragStyles] = useState<{
+    dragOverlayStyle?: React.CSSProperties;
+    leftHandleStyle?: React.CSSProperties;
+    rightHandleStyle?: React.CSSProperties;
+  }>({});
+
+  const updateOverlay = () => {
+    const u = uplotRef.current;
+    if (!u) return;
+    const left = u.valToPos(timelineRange.from, 'x') + u.bbox.left;
+    const right = u.valToPos(timelineRange.to, 'x') + u.bbox.left;
+    setDragStyles({
+      dragOverlayStyle: {
+        position: 'absolute',
+        top: 0,
+        left,
+        width: right - left,
+        height: u.bbox.height,
+        cursor: 'grab',
+        background: 'rgba(0, 123, 255, 0.1)',
+        zIndex: 10,
+      },
+      leftHandleStyle: {
+        position: 'absolute',
+        top: 0,
+        left,
+        width: 6,
+        height: u.bbox.height,
+        cursor: 'ew-resize',
+        zIndex: 11,
+      },
+      rightHandleStyle: {
+        position: 'absolute',
+        top: 0,
+        left: right - 6,
+        width: 6,
+        height: u.bbox.height,
+        cursor: 'ew-resize',
+        zIndex: 11,
+      },
+    });
+  };
+
+  useEffect(() => {
+    updateOverlay();
+  }, [timelineRange, visibleRange]);
 
   useEffect(() => {
     const matchesDashboard =
@@ -87,8 +139,14 @@ export const SimplePanel: React.FC<Props> = ({
     }
   }, [dashboardFrom, dashboardTo, timelineRange.from, timelineRange.to]);
 
-  const uplotRef = useRef<uPlot | null>(null);
-  const isDragging = useRef(false);
+  const setVisibleRange = (range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
+    setVisibleRangeState(range);
+    if (suppressDashboardUpdate) {
+      suppressNextDashboardUpdate.current = true;
+      skipNextSelectUpdate.current = true;
+      isProgrammaticSelect.current = true;
+    }
+  };
 
   const timeField = data.series[0]?.fields.find(f => f.type === 'time');
   const valueField = data.series[0]?.fields.find(f => f.type === 'number');
@@ -100,14 +158,14 @@ export const SimplePanel: React.FC<Props> = ({
     const span = (visibleRange.to - visibleRange.from) * factor / 2;
     const newFrom = mid - span;
     const newTo = mid + span;
-    setVisibleRange({ from: newFrom, to: newTo });
+    setVisibleRange({ from: newFrom, to: newTo }, true);
   };
 
   const panContextWindow = (direction: 'left' | 'right') => {
     const span = visibleRange.to - visibleRange.from;
     const shift = span * 0.25;
     const delta = direction === 'left' ? -shift : shift;
-    setVisibleRange({ from: visibleRange.from + delta, to: visibleRange.to + delta });
+    setVisibleRange({ from: visibleRange.from + delta, to: visibleRange.to + delta }, true);
   };
 
   const builder = useMemo(() => {
@@ -123,9 +181,12 @@ export const SimplePanel: React.FC<Props> = ({
     });
 
     b.addHook('setSelect', (u: uPlot) => {
-      if (isDragging.current) {
+      if (isProgrammaticSelect.current || skipNextSelectUpdate.current) {
+        isProgrammaticSelect.current = false;
+        skipNextSelectUpdate.current = false;
         return;
       }
+      if (isDragging.current) return;
 
       const xDrag = Boolean(u.cursor?.drag?.x);
       if (xDrag && u.select.left != null && u.select.width != null) {
@@ -133,19 +194,25 @@ export const SimplePanel: React.FC<Props> = ({
         const to = u.posToVal(u.select.left + u.select.width, 'x');
         const newRange: AbsoluteTimeRange = { from, to };
         setTimelineRange(newRange);
-        onChangeTimeRange(newRange);
+        if (!suppressNextDashboardUpdate.current) {
+          onChangeTimeRange(newRange);
+        }
+        suppressNextDashboardUpdate.current = false;
       }
     });
 
     b.addHook('ready', (u: uPlot) => {
       uplotRef.current = u;
-      const left = u.valToPos(timelineRange.from, 'x');
-      const right = u.valToPos(timelineRange.to, 'x');
-      u.setSelect({
-        left,
-        top: 0,
-        width: right - left,
-        height: u.bbox.height,
+      requestAnimationFrame(() => {
+        const left = u.valToPos(timelineRange.from, 'x');
+        const right = u.valToPos(timelineRange.to, 'x');
+        u.setSelect({
+          left,
+          top: 0,
+          width: right - left,
+          height: u.bbox.height,
+        });
+        updateOverlay();
       });
     });
 
@@ -157,45 +224,11 @@ export const SimplePanel: React.FC<Props> = ({
     };
 
     return b;
-  }, [theme, visibleRange, timelineRange.from, timelineRange.to, onChangeTimeRange]);
-
-  let dragOverlayStyle: React.CSSProperties | undefined = undefined;
-  let leftHandleStyle: React.CSSProperties | undefined = undefined;
-  let rightHandleStyle: React.CSSProperties | undefined = undefined;
-
-  if (uplotRef.current) {
-    const u = uplotRef.current;
-    const left = u.valToPos(timelineRange.from, 'x') + u.bbox.left;
-    const right = u.valToPos(timelineRange.to, 'x') + u.bbox.left;
-    dragOverlayStyle = {
-      position: 'absolute',
-      top: 0,
-      left,
-      width: right - left,
-      height: u.bbox.height,
-      cursor: 'grab',
-      background: 'rgba(0, 123, 255, 0.1)',
-      zIndex: 10,
-    };
-    leftHandleStyle = {
-      ...dragOverlayStyle,
-      left,
-      width: 6,
-      cursor: 'ew-resize',
-    };
-    rightHandleStyle = {
-      ...dragOverlayStyle,
-      left: right - 6,
-      width: 6,
-      cursor: 'ew-resize',
-    };
-  }
+  }, [theme, visibleRange.from, visibleRange.to, timelineRange.from, timelineRange.to]);
 
   const handleDrag = (e: React.MouseEvent, kind: 'move' | 'left' | 'right') => {
     const u = uplotRef.current;
-    if (!u) {
-      return;
-    }
+    if (!u) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -227,6 +260,7 @@ export const SimplePanel: React.FC<Props> = ({
         width: u.valToPos(newTo, 'x') - u.valToPos(newFrom, 'x'),
         height: u.bbox.height,
       });
+      updateOverlay();
     };
 
     const onMouseUp = () => {
@@ -235,12 +269,14 @@ export const SimplePanel: React.FC<Props> = ({
       isDragging.current = false;
 
       u.setSelect({ left: 0, width: 0, top: 0, height: 0 });
-      if (u.cursor?.drag) {
-        u.cursor.drag.x = false;
-      }
+      if (u.cursor?.drag) u.cursor.drag.x = false;
 
-      setTimelineRange({ from: newFrom, to: newTo });
-      onChangeTimeRange({ from: newFrom, to: newTo });
+      const newRange = { from: newFrom, to: newTo };
+      setTimelineRange(newRange);
+      if (!suppressNextDashboardUpdate.current) {
+        onChangeTimeRange(newRange);
+      }
+      suppressNextDashboardUpdate.current = false;
     };
 
     window.addEventListener('mousemove', onMouseMove);
@@ -272,7 +308,17 @@ export const SimplePanel: React.FC<Props> = ({
                     now={now}
                     uplotRef={uplotRef}
                     timelineRange={timelineRange}
-                    setVisibleRange={setVisibleRange}
+                    setVisibleRange={(r) => {
+                      const visibleSpan = visibleRange.to - visibleRange.from;
+                      const relFrom = (timelineRange.from - visibleRange.from) / visibleSpan;
+                      const relTo = (timelineRange.to - visibleRange.from) / visibleSpan;
+                      const newVisibleFrom = r.from;
+                      const newVisibleTo = r.to;
+                      const newTimelineFrom = newVisibleFrom + relFrom * (newVisibleTo - newVisibleFrom);
+                      const newTimelineTo = newVisibleFrom + relTo * (newVisibleTo - newVisibleFrom);
+                      setTimelineRange({ from: newTimelineFrom, to: newTimelineTo });
+                      setVisibleRange(r, true);
+                    }}
                     onClose={() => setAnchorEl(null)}
                   />
                 </div>
@@ -280,26 +326,10 @@ export const SimplePanel: React.FC<Props> = ({
             />
           )}
         </>
-        <IconButton
-          tooltip="Pan left"
-          name="arrow-left"
-          onClick={() => panContextWindow('left')}
-        />
-        <IconButton
-          tooltip="Zoom out context"
-          name="search-minus"
-          onClick={() => zoomContextWindow(2)}
-        />
-        <IconButton
-          tooltip="Zoom in context"
-          name="search-plus"
-          onClick={() => zoomContextWindow(0.5)}
-        />
-        <IconButton
-          tooltip="Pan right"
-          name="arrow-right"
-          onClick={() => panContextWindow('right')}
-        />
+        <IconButton tooltip="Pan left" name="arrow-left" onClick={() => panContextWindow('left')} />
+        <IconButton tooltip="Zoom out context" name="search-minus" onClick={() => zoomContextWindow(2)} />
+        <IconButton tooltip="Zoom in context" name="search-plus" onClick={() => zoomContextWindow(0.5)} />
+        <IconButton tooltip="Pan right" name="arrow-right" onClick={() => panContextWindow('right')} />
         <span style={{ fontSize: 12 }}>
           {new Date(visibleRange.from).toISOString().replace('T', ' ').slice(0, 19)} to{' '}
           {new Date(visibleRange.to).toISOString().replace('T', ' ').slice(0, 19)}
@@ -307,25 +337,17 @@ export const SimplePanel: React.FC<Props> = ({
       </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
         <UPlotChart data={[timeValues, valueValues]} width={width - 100} height={50} config={builder} />
-        {dragOverlayStyle && (
+        {dragStyles.dragOverlayStyle && (
           <>
-            <div style={dragOverlayStyle} onMouseDown={(e) => handleDrag(e, 'move')} />
-            <div
-              className={styles.resizeHandle}
-              style={leftHandleStyle}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                handleDrag(e, 'left');
-              }}
-            />
-            <div
-              className={styles.resizeHandle}
-              style={rightHandleStyle}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-                handleDrag(e, 'right');
-              }}
-            />
+            <div style={dragStyles.dragOverlayStyle} onMouseDown={(e) => handleDrag(e, 'move')} />
+            <div className={styles.resizeHandle} style={dragStyles.leftHandleStyle} onMouseDown={(e) => {
+              e.stopPropagation();
+              handleDrag(e, 'left');
+            }} />
+            <div className={styles.resizeHandle} style={dragStyles.rightHandleStyle} onMouseDown={(e) => {
+              e.stopPropagation();
+              handleDrag(e, 'right');
+            }} />
           </>
         )}
       </div>
