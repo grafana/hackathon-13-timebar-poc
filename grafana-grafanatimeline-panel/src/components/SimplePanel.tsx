@@ -1,5 +1,5 @@
-import React from 'react';
-import { PanelProps } from '@grafana/data';
+import React, { useState } from 'react';
+import { PanelProps, AbsoluteTimeRange, parseDuration, durationToMilliseconds } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from '@emotion/css';
 import { AxisPlacement, Combobox, UPlotChart, UPlotConfigBuilder, useStyles2, useTheme2 } from '@grafana/ui';
@@ -28,10 +28,11 @@ const getStyles = () => {
 };
 
 const OPTIONS = [
-  {label: 'Last 24 hours', value: 'now-24h'},
-  {label: 'Last 1 week', value: 'now-7d'},
-  {label: 'Last 2 weeks', value: 'now-14d'},
-  {label: 'Last 30 days', value: 'now-30d'},
+  {label: 'Same as timepicker', value: '0h'},
+  {label: 'Last 24 hours', value: '24h'},
+  {label: 'Last 1 week', value: '7d'},
+  {label: 'Last 2 weeks', value: '14d'},
+  {label: 'Last 30 days', value: '30d'},
 ]
 
 /*
@@ -40,27 +41,30 @@ todo: turn off horizontal cursor line
 
 */
 
-export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fieldConfig, id }) => {
+export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fieldConfig, id, onChangeTimeRange }) => {
   const theme = useTheme2();
   const styles = useStyles2(getStyles);
   const builder = new UPlotConfigBuilder();
+  const [timelineRange, setTimelineRange] = useState({from: data.timeRange.from.valueOf(), to: data.timeRange.to.valueOf()});
+
 
   builder.addAxis({isTime: true, placement: AxisPlacement.Bottom, theme, scaleKey: 'x'});
 
   builder.addHook('setSelect', (u) => {
-            const xDrag = Boolean(u.cursor!.drag!.x);
+      const xDrag = Boolean(u.cursor!.drag!.x);
 
-            let xSel = null;
+      let xSel: AbsoluteTimeRange | null = null;
 
-            // get x selection
-            if (xDrag) {
-              xSel = {
-                from: u.posToVal(u.select.left!, 'x'),
-                to: u.posToVal(u.select.top, 'x'),
-              };
-            }
-
-            console.log(xSel);
+      // get x selection
+      if (xDrag) {
+        xSel = {
+          to: u.posToVal(u.select.left!, 'x'),
+          from: u.posToVal(u.select.top!, 'x'),
+        };
+      }
+      if (xSel !== null) {
+        onChangeTimeRange(xSel);
+      }
   })
 
   if (data.series.length === 0) {
@@ -80,10 +84,16 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
       <Combobox
           width="auto"
           minWidth={25}
+          placeholder='Select added window size...'
           options={OPTIONS}
-          onChange={()=>{}}
+          onChange={(val)=>{
+            const selectedDurationMs = durationToMilliseconds(parseDuration(val.value));
+            const fromVal = data.timeRange.from.valueOf() - selectedDurationMs;
+            const toVal = data.timeRange.to.valueOf() + selectedDurationMs;
+            setTimelineRange({from: fromVal, to: toVal})
+          }}
           />
-      <UPlotChart data={[[data.timeRange.from.valueOf(), data.timeRange.to.valueOf()]]} width={width-100} height={50} config={builder}/>
+      <UPlotChart data={[[timelineRange.from, timelineRange.to]]} width={width-100} height={50} config={builder}/>
     </div>
   );
 };
