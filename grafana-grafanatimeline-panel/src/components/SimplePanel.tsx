@@ -19,7 +19,7 @@ import { ContextWindowSelector } from './ContextWindowSelector';
 
 interface Props extends PanelProps<SimpleOptions> {}
 
-const getStyles = () => ({
+const getStyles = (theme: ReturnType<typeof useTheme2>) => ({
   wrapper: css`
     font-family: Open Sans;
     position: relative;
@@ -46,7 +46,7 @@ const getStyles = () => ({
     margin-bottom: 4px;
   `,
   popoverContent: css`
-    background-color: ${useTheme2().colors.background.primary};
+    background-color: ${theme.colors.background.primary};
     padding: 8px;
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -63,7 +63,7 @@ export const SimplePanel: React.FC<Props> = ({
   onChangeTimeRange,
 }) => {
   const theme = useTheme2();
-  const styles = useStyles2(getStyles);
+  const styles = useStyles2(() => getStyles(theme));
   const now = Date.now();
 
   const dashboardFrom = data.timeRange.from.valueOf();
@@ -78,8 +78,14 @@ export const SimplePanel: React.FC<Props> = ({
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    setTimelineRange({ from: dashboardFrom, to: dashboardTo });
-  }, [dashboardFrom, dashboardTo]);
+    const matchesDashboard =
+      Math.abs(timelineRange.from - dashboardFrom) < 1000 &&
+      Math.abs(timelineRange.to - dashboardTo) < 1000;
+
+    if (matchesDashboard) {
+      setTimelineRange({ from: dashboardFrom, to: dashboardTo });
+    }
+  }, [dashboardFrom, dashboardTo, timelineRange.from, timelineRange.to]);
 
   const uplotRef = useRef<uPlot | null>(null);
   const isDragging = useRef(false);
@@ -117,7 +123,9 @@ export const SimplePanel: React.FC<Props> = ({
     });
 
     b.addHook('setSelect', (u: uPlot) => {
-      if (isDragging.current) return;
+      if (isDragging.current) {
+        return;
+      }
 
       const xDrag = Boolean(u.cursor?.drag?.x);
       if (xDrag && u.select.left != null && u.select.width != null) {
@@ -185,7 +193,9 @@ export const SimplePanel: React.FC<Props> = ({
 
   const handleDrag = (e: React.MouseEvent, kind: 'move' | 'left' | 'right') => {
     const u = uplotRef.current;
-    if (!u) return;
+    if (!u) {
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
