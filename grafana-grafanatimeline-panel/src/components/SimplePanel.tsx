@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   PanelProps,
   AbsoluteTimeRange,
@@ -71,6 +71,10 @@ export const SimplePanel: React.FC<Props> = ({
     from: dashboardFrom - 7 * 24 * 60 * 60 * 1000,
     to: Math.min(dashboardTo, now),
   });
+
+  useEffect(() => {
+    setTimelineRange({ from: dashboardFrom, to: dashboardTo });
+  }, [dashboardFrom, dashboardTo]);
 
   const uplotRef = useRef<uPlot | null>(null);
   const isDragging = useRef(false);
