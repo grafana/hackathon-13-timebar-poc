@@ -286,6 +286,9 @@ export const SimplePanel: React.FC<Props> = ({
           name="arrow-right"
           onClick={() => panContextWindow('right')}
         />
+        <span style={{ fontSize: 12 }}>
+          {new Date(visibleRange.from).toISOString().replace('T', ' ').slice(0, 19)} to {new Date(visibleRange.to).toISOString().replace('T', ' ').slice(0, 19)}
+        </span>
       </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
         <UPlotChart
