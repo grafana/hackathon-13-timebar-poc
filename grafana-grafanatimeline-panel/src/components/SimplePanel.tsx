@@ -2,21 +2,20 @@ import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   PanelProps,
   AbsoluteTimeRange,
-  parseDuration,
-  durationToMilliseconds,
 } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from '@emotion/css';
 import {
   AxisPlacement,
-  Combobox,
   UPlotChart,
   UPlotConfigBuilder,
   useStyles2,
   useTheme2,
   IconButton,
+  Popover,
 } from '@grafana/ui';
 import { PanelDataErrorView } from '@grafana/runtime';
+import { ContextWindowSelector } from './ContextWindowSelector';
 
 interface Props extends PanelProps<SimpleOptions> {}
 
@@ -46,15 +45,13 @@ const getStyles = () => ({
     gap: 8px;
     margin-bottom: 4px;
   `,
+  popoverContent: css`
+    background-color: ${useTheme2().colors.background.primary};
+    padding: 8px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  `,
 });
-
-const OPTIONS = [
-  { label: 'Same as timepicker', value: '0h' },
-  { label: 'Last 24 hours', value: '24h' },
-  { label: 'Last 1 week', value: '7d' },
-  { label: 'Last 2 weeks', value: '14d' },
-  { label: 'Last 30 days', value: '30d' },
-];
 
 export const SimplePanel: React.FC<Props> = ({
   options,
@@ -77,6 +74,8 @@ export const SimplePanel: React.FC<Props> = ({
     from: dashboardFrom - 7 * 24 * 60 * 60 * 1000,
     to: Math.min(dashboardTo, now),
   });
+
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
     setTimelineRange({ from: dashboardFrom, to: dashboardTo });
@@ -184,10 +183,7 @@ export const SimplePanel: React.FC<Props> = ({
     };
   }
 
-  const handleDrag = (
-    e: React.MouseEvent,
-    kind: 'move' | 'left' | 'right'
-  ) => {
+  const handleDrag = (e: React.MouseEvent, kind: 'move' | 'left' | 'right') => {
     const u = uplotRef.current;
     if (!u) return;
 
@@ -248,30 +244,32 @@ export const SimplePanel: React.FC<Props> = ({
   return (
     <div className={cx(styles.wrapper)} style={{ width, height }}>
       <div className={styles.controlRow}>
-        <Combobox
-          width="auto"
-          minWidth={25}
-          placeholder="Select added window size..."
-          options={OPTIONS}
-          onChange={(val) => {
-            const extraWindow = durationToMilliseconds(parseDuration(val.value));
-            const newFrom = dashboardFrom - extraWindow;
-            const newTo = Math.min(dashboardTo + extraWindow, now);
-            setVisibleRange({ from: newFrom, to: newTo });
-
-            const u = uplotRef.current;
-            if (u) {
-              const left = u.valToPos(timelineRange.from, 'x');
-              const right = u.valToPos(timelineRange.to, 'x');
-              u.setSelect({
-                left,
-                top: 0,
-                width: right - left,
-                height: u.bbox.height,
-              });
-            }
-          }}
-        />
+        <>
+          <IconButton
+            name="calendar-alt"
+            tooltip="Set context window"
+            onClick={(e) => setAnchorEl(e.currentTarget)}
+          />
+          {anchorEl && (
+            <Popover
+              referenceElement={anchorEl}
+              show={true}
+              content={
+                <div className={styles.popoverContent}>
+                  <ContextWindowSelector
+                    dashboardFrom={dashboardFrom}
+                    dashboardTo={dashboardTo}
+                    now={now}
+                    uplotRef={uplotRef}
+                    timelineRange={timelineRange}
+                    setVisibleRange={setVisibleRange}
+                    onClose={() => setAnchorEl(null)}
+                  />
+                </div>
+              }
+            />
+          )}
+        </>
         <IconButton
           tooltip="Pan left"
           name="arrow-left"
@@ -293,22 +291,15 @@ export const SimplePanel: React.FC<Props> = ({
           onClick={() => panContextWindow('right')}
         />
         <span style={{ fontSize: 12 }}>
-          {new Date(visibleRange.from).toISOString().replace('T', ' ').slice(0, 19)} to {new Date(visibleRange.to).toISOString().replace('T', ' ').slice(0, 19)}
+          {new Date(visibleRange.from).toISOString().replace('T', ' ').slice(0, 19)} to{' '}
+          {new Date(visibleRange.to).toISOString().replace('T', ' ').slice(0, 19)}
         </span>
       </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
-        <UPlotChart
-          data={[timeValues, valueValues]}
-          width={width - 100}
-          height={50}
-          config={builder}
-        />
+        <UPlotChart data={[timeValues, valueValues]} width={width - 100} height={50} config={builder} />
         {dragOverlayStyle && (
           <>
-            <div
-              style={dragOverlayStyle}
-              onMouseDown={(e) => handleDrag(e, 'move')}
-            />
+            <div style={dragOverlayStyle} onMouseDown={(e) => handleDrag(e, 'move')} />
             <div
               className={styles.resizeHandle}
               style={leftHandleStyle}
