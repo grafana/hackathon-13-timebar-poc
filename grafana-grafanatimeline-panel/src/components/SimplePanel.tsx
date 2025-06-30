@@ -14,6 +14,7 @@ import {
   UPlotConfigBuilder,
   useStyles2,
   useTheme2,
+  IconButton,
 } from '@grafana/ui';
 import { PanelDataErrorView } from '@grafana/runtime';
 
@@ -32,6 +33,12 @@ const getStyles = () => ({
     background: rgba(0, 123, 255, 0.2);
     cursor: ew-resize;
     z-index: 11;
+  `,
+  controlRow: css`
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
   `,
 });
 
@@ -72,6 +79,14 @@ export const SimplePanel: React.FC<Props> = ({
   const valueField = data.series[0]?.fields.find(f => f.type === 'number');
   const timeValues = timeField?.values.toArray() ?? [];
   const valueValues = valueField?.values.toArray() ?? [];
+
+  const zoomContextWindow = (factor: number) => {
+    const mid = (visibleRange.from + visibleRange.to) / 2;
+    const span = (visibleRange.to - visibleRange.from) * factor / 2;
+    const newFrom = mid - span;
+    const newTo = mid + span;
+    setVisibleRange({ from: newFrom, to: newTo });
+  };
 
   const builder = useMemo(() => {
     const b = new UPlotConfigBuilder();
@@ -215,30 +230,42 @@ export const SimplePanel: React.FC<Props> = ({
 
   return (
     <div className={cx(styles.wrapper)} style={{ width, height }}>
-      <Combobox
-        width="auto"
-        minWidth={25}
-        placeholder="Select added window size..."
-        options={OPTIONS}
-        onChange={(val) => {
-          const extraWindow = durationToMilliseconds(parseDuration(val.value));
-          const newFrom = dashboardFrom - extraWindow;
-          const newTo = Math.min(dashboardTo + extraWindow, now);
-          setVisibleRange({ from: newFrom, to: newTo });
+      <div className={styles.controlRow}>
+        <Combobox
+          width="auto"
+          minWidth={25}
+          placeholder="Select added window size..."
+          options={OPTIONS}
+          onChange={(val) => {
+            const extraWindow = durationToMilliseconds(parseDuration(val.value));
+            const newFrom = dashboardFrom - extraWindow;
+            const newTo = Math.min(dashboardTo + extraWindow, now);
+            setVisibleRange({ from: newFrom, to: newTo });
 
-          const u = uplotRef.current;
-          if (u) {
-            const left = u.valToPos(timelineRange.from, 'x');
-            const right = u.valToPos(timelineRange.to, 'x');
-            u.setSelect({
-              left,
-              top: 0,
-              width: right - left,
-              height: u.bbox.height,
-            });
-          }
-        }}
-      />
+            const u = uplotRef.current;
+            if (u) {
+              const left = u.valToPos(timelineRange.from, 'x');
+              const right = u.valToPos(timelineRange.to, 'x');
+              u.setSelect({
+                left,
+                top: 0,
+                width: right - left,
+                height: u.bbox.height,
+              });
+            }
+          }}
+        />
+        <IconButton
+          tooltip="Zoom out context"
+          name="search-minus"
+          onClick={() => zoomContextWindow(2)}
+        />
+        <IconButton
+          tooltip="Zoom in context"
+          name="search-plus"
+          onClick={() => zoomContextWindow(0.5)}
+        />
+      </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
         <UPlotChart
           data={[timeValues, valueValues]}
