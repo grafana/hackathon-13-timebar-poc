@@ -88,6 +88,13 @@ export const SimplePanel: React.FC<Props> = ({
     setVisibleRange({ from: newFrom, to: newTo });
   };
 
+  const panContextWindow = (direction: 'left' | 'right') => {
+    const span = visibleRange.to - visibleRange.from;
+    const shift = span * 0.25;
+    const delta = direction === 'left' ? -shift : shift;
+    setVisibleRange({ from: visibleRange.from + delta, to: visibleRange.to + delta });
+  };
+
   const builder = useMemo(() => {
     const b = new UPlotConfigBuilder();
 
@@ -256,6 +263,11 @@ export const SimplePanel: React.FC<Props> = ({
           }}
         />
         <IconButton
+          tooltip="Pan left"
+          name="arrow-left"
+          onClick={() => panContextWindow('left')}
+        />
+        <IconButton
           tooltip="Zoom out context"
           name="search-minus"
           onClick={() => zoomContextWindow(2)}
@@ -264,6 +276,11 @@ export const SimplePanel: React.FC<Props> = ({
           tooltip="Zoom in context"
           name="search-plus"
           onClick={() => zoomContextWindow(0.5)}
+        />
+        <IconButton
+          tooltip="Pan right"
+          name="arrow-right"
+          onClick={() => panContextWindow('right')}
         />
       </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
