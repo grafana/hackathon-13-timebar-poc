@@ -19,34 +19,21 @@ import { PanelDataErrorView } from '@grafana/runtime';
 
 interface Props extends PanelProps<SimpleOptions> {}
 
-const getStyles = () => {
-  return {
-    wrapper: css`
-      font-family: Open Sans;
-      position: relative;
-    `,
-    svg: css`
-      position: absolute;
-      top: 0;
-      left: 0;
-    `,
-    textBox: css`
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      padding: 10px;
-    `,
-    resizeHandle: css`
-      position: absolute;
-      top: 0;
-      width: 6px;
-      height: 100%;
-      background: rgba(0, 123, 255, 0.2);
-      cursor: ew-resize;
-      z-index: 11;
-    `,
-  };
-};
+const getStyles = () => ({
+  wrapper: css`
+    font-family: Open Sans;
+    position: relative;
+  `,
+  resizeHandle: css`
+    position: absolute;
+    top: 0;
+    width: 6px;
+    height: 100%;
+    background: rgba(0, 123, 255, 0.2);
+    cursor: ew-resize;
+    z-index: 11;
+  `,
+});
 
 const OPTIONS = [
   { label: 'Same as timepicker', value: '0h' },
@@ -67,10 +54,10 @@ export const SimplePanel: React.FC<Props> = ({
 }) => {
   const theme = useTheme2();
   const styles = useStyles2(getStyles);
+  const now = Date.now();
 
   const dashboardFrom = data.timeRange.from.valueOf();
   const dashboardTo = data.timeRange.to.valueOf();
-  const now = Date.now();
 
   const [timelineRange, setTimelineRange] = useState({ from: dashboardFrom, to: dashboardTo });
   const [visibleRange, setVisibleRange] = useState<AbsoluteTimeRange>({
@@ -79,6 +66,7 @@ export const SimplePanel: React.FC<Props> = ({
   });
 
   const uplotRef = useRef<uPlot | null>(null);
+  const isDragging = useRef(false);
 
   const timeField = data.series[0]?.fields.find(f => f.type === 'time');
   const valueField = data.series[0]?.fields.find(f => f.type === 'number');
@@ -98,6 +86,8 @@ export const SimplePanel: React.FC<Props> = ({
     });
 
     b.addHook('setSelect', (u: uPlot) => {
+      if (isDragging.current) return;
+
       const xDrag = Boolean(u.cursor?.drag?.x);
       if (xDrag && u.select.left != null && u.select.width != null) {
         const from = u.posToVal(u.select.left, 'x');
@@ -162,6 +152,63 @@ export const SimplePanel: React.FC<Props> = ({
     };
   }
 
+  const handleDrag = (
+    e: React.MouseEvent,
+    kind: 'move' | 'left' | 'right'
+  ) => {
+    const u = uplotRef.current;
+    if (!u) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    isDragging.current = true;
+
+    const startX = e.clientX;
+    const origFrom = timelineRange.from;
+    const origTo = timelineRange.to;
+    let newFrom = origFrom;
+    let newTo = origTo;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaPx = moveEvent.clientX - startX;
+      const deltaVal = u.posToVal(u.valToPos(origFrom, 'x') + deltaPx, 'x') - origFrom;
+
+      if (kind === 'move') {
+        newFrom = origFrom + deltaVal;
+        newTo = origTo + deltaVal;
+      } else if (kind === 'left') {
+        newFrom = u.posToVal(u.valToPos(origFrom, 'x') + deltaPx, 'x');
+      } else if (kind === 'right') {
+        newTo = u.posToVal(u.valToPos(origTo, 'x') + deltaPx, 'x');
+      }
+
+      u.setSelect({
+        left: u.valToPos(newFrom, 'x'),
+        top: 0,
+        width: u.valToPos(newTo, 'x') - u.valToPos(newFrom, 'x'),
+        height: u.bbox.height,
+      });
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      isDragging.current = false;
+
+      u.setSelect({ left: 0, width: 0, top: 0, height: 0 });
+      if (u.cursor?.drag) {
+        u.cursor.drag.x = false;
+      }
+
+      setTimelineRange({ from: newFrom, to: newTo });
+      onChangeTimeRange({ from: newFrom, to: newTo });
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
   if (data.series.length === 0) {
     return <PanelDataErrorView fieldConfig={fieldConfig} panelId={id} data={data} needsStringField />;
   }
@@ -177,7 +224,6 @@ export const SimplePanel: React.FC<Props> = ({
           const extraWindow = durationToMilliseconds(parseDuration(val.value));
           const newFrom = dashboardFrom - extraWindow;
           const newTo = Math.min(dashboardTo + extraWindow, now);
-
           setVisibleRange({ from: newFrom, to: newTo });
 
           const u = uplotRef.current;
@@ -204,111 +250,22 @@ export const SimplePanel: React.FC<Props> = ({
           <>
             <div
               style={dragOverlayStyle}
-              onMouseDown={(e) => {
-                const u = uplotRef.current;
-                if (!u) return;
-
-                const startX = e.clientX;
-                const origFrom = timelineRange.from;
-                const origTo = timelineRange.to;
-
-                let currentFrom = origFrom;
-                let currentTo = origTo;
-
-                const onMouseMove = (moveEvent: MouseEvent) => {
-                  const deltaPx = moveEvent.clientX - startX;
-                  const deltaVal = u.posToVal(u.valToPos(origFrom, 'x') + deltaPx, 'x') - origFrom;
-
-                  currentFrom = origFrom + deltaVal;
-                  currentTo = origTo + deltaVal;
-
-                  u.setSelect({
-                    left: u.valToPos(currentFrom, 'x'),
-                    top: 0,
-                    width: u.valToPos(currentTo, 'x') - u.valToPos(currentFrom, 'x'),
-                    height: u.bbox.height,
-                  });
-                };
-
-                const onMouseUp = () => {
-                  window.removeEventListener('mousemove', onMouseMove);
-                  window.removeEventListener('mouseup', onMouseUp);
-                  setTimelineRange({ from: currentFrom, to: currentTo });
-                  onChangeTimeRange({ from: currentFrom, to: currentTo });
-                };
-
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseup', onMouseUp);
-              }}
+              onMouseDown={(e) => handleDrag(e, 'move')}
             />
             <div
               className={styles.resizeHandle}
               style={leftHandleStyle}
               onMouseDown={(e) => {
-                const u = uplotRef.current;
-                if (!u) return;
                 e.stopPropagation();
-                const startX = e.clientX;
-                const origFrom = timelineRange.from;
-
-                let currentFrom = origFrom;
-
-                const onMouseMove = (moveEvent: MouseEvent) => {
-                  const deltaPx = moveEvent.clientX - startX;
-                  currentFrom = u.posToVal(u.valToPos(origFrom, 'x') + deltaPx, 'x');
-
-                  u.setSelect({
-                    left: u.valToPos(currentFrom, 'x'),
-                    top: 0,
-                    width: u.valToPos(timelineRange.to, 'x') - u.valToPos(currentFrom, 'x'),
-                    height: u.bbox.height,
-                  });
-                };
-
-                const onMouseUp = () => {
-                  window.removeEventListener('mousemove', onMouseMove);
-                  window.removeEventListener('mouseup', onMouseUp);
-                  setTimelineRange({ from: currentFrom, to: timelineRange.to });
-                  onChangeTimeRange({ from: currentFrom, to: timelineRange.to });
-                };
-
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseup', onMouseUp);
+                handleDrag(e, 'left');
               }}
             />
             <div
               className={styles.resizeHandle}
               style={rightHandleStyle}
               onMouseDown={(e) => {
-                const u = uplotRef.current;
-                if (!u) return;
                 e.stopPropagation();
-                const startX = e.clientX;
-                const origTo = timelineRange.to;
-
-                let currentTo = origTo;
-
-                const onMouseMove = (moveEvent: MouseEvent) => {
-                  const deltaPx = moveEvent.clientX - startX;
-                  currentTo = u.posToVal(u.valToPos(origTo, 'x') + deltaPx, 'x');
-
-                  u.setSelect({
-                    left: u.valToPos(timelineRange.from, 'x'),
-                    top: 0,
-                    width: u.valToPos(currentTo, 'x') - u.valToPos(timelineRange.from, 'x'),
-                    height: u.bbox.height,
-                  });
-                };
-
-                const onMouseUp = () => {
-                  window.removeEventListener('mousemove', onMouseMove);
-                  window.removeEventListener('mouseup', onMouseUp);
-                  setTimelineRange({ from: timelineRange.from, to: currentTo });
-                  onChangeTimeRange({ from: timelineRange.from, to: currentTo });
-                };
-
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseup', onMouseUp);
+                handleDrag(e, 'right');
               }}
             />
           </>
