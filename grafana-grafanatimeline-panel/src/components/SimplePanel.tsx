@@ -83,6 +83,7 @@ export const SimplePanel: React.FC<Props> = ({
   const isDragging = useRef(false);
   
   const isPanning = useRef(false);
+  const wheelListenerRef = useRef<((e: WheelEvent) => void) | null>(null);
 
   const handlePanStart = useCallback((e: MouseEvent | React.MouseEvent) => {
     const u = uplotRef.current;
@@ -233,36 +234,67 @@ export const SimplePanel: React.FC<Props> = ({
     });
 
     b.addHook('ready', (u: uPlot) => {
-      uplotRef.current = u;
+  uplotRef.current = u;
 
-      requestAnimationFrame(() => {
-        const left = u.valToPos(timelineRange.from, 'x');
-        const right = u.valToPos(timelineRange.to, 'x');
-        u.setSelect({
-          left,
-          top: 0,
-          width: right - left,
-          height: u.bbox.height,
-        });
-        updateOverlay();
-      });
+  // Store the wheel listener so it can be reused in the overlay div
+  wheelListenerRef.current = (e: WheelEvent) => {
+    e.preventDefault(); // prevent page scroll
+    const zoomBase = 0.8;
+    const zoomFactor = e.deltaY < 0 ? 1 / zoomBase : zoomBase;
 
-      // Add pan drag to the bottom axis
-      const bottomAxis = u.root.querySelector('.u-axis') as HTMLElement;
-      if (bottomAxis) {
-        bottomAxis.style.cursor = 'grab';
-        const listener = (e: MouseEvent) => handlePanStart(e);
-        bottomAxis.addEventListener('mousedown', listener);
-        // Store cleanup
-        (u as any)._cleanupBottomAxisPan = () => {
-          bottomAxis.removeEventListener('mousedown', listener);
-        };
-      }
+    const rect = u.root.getBoundingClientRect();
+    const cursorX = e.clientX - rect.left - u.bbox.left;
+    const cursorVal = u.posToVal(cursorX, 'x');
+
+    const span = visibleRange.to - visibleRange.from;
+    const newSpan = span * zoomFactor;
+    const newFrom = cursorVal - ((cursorVal - visibleRange.from) / span) * newSpan;
+    const newTo = newFrom + newSpan;
+
+    setVisibleRange({ from: newFrom, to: newTo }, true);
+  };
+
+  // Attach wheel zoom to uPlot overlay
+  const over = u.root.querySelector('.u-over') as HTMLElement;
+  if (over && wheelListenerRef.current) {
+    over.addEventListener('wheel', wheelListenerRef.current, { passive: false });
+
+    (u as any)._cleanupWheelZoom = () => {
+      over.removeEventListener('wheel', wheelListenerRef.current!);
+    };
+  }
+
+  // Draw selection brush
+  requestAnimationFrame(() => {
+    const left = u.valToPos(timelineRange.from, 'x');
+    const right = u.valToPos(timelineRange.to, 'x');
+    u.setSelect({
+      left,
+      top: 0,
+      width: right - left,
+      height: u.bbox.height,
     });
+    updateOverlay();
+  });
+
+  // Enable pan drag on bottom axis
+  const bottomAxis = u.root.querySelector('.u-axis') as HTMLElement;
+  if (bottomAxis) {
+    bottomAxis.style.cursor = 'grab';
+    const listener = (e: MouseEvent) => handlePanStart(e);
+    bottomAxis.addEventListener('mousedown', listener);
+    (u as any)._cleanupBottomAxisPan = () => {
+      bottomAxis.removeEventListener('mousedown', listener);
+    };
+  }
+});
 
     b.addHook('destroy', (u: uPlot) => {
       if ((u as any)._cleanupBottomAxisPan) {
         (u as any)._cleanupBottomAxisPan();
+      }
+      if ((u as any)._cleanupWheelZoom) {
+        (u as any)._cleanupWheelZoom();
       }
     });
 
@@ -384,7 +416,11 @@ export const SimplePanel: React.FC<Props> = ({
         <UPlotChart data={[timeValues, valueValues]} width={width - 100} height={50} config={builder} />
         {dragStyles.dragOverlayStyle && (
           <>
-            <div style={dragStyles.dragOverlayStyle} onMouseDown={(e) => handleDrag(e, 'move')} />
+            <div
+              style={dragStyles.dragOverlayStyle}
+              onMouseDown={(e) => handleDrag(e, 'move')}
+              onWheel={(e) => wheelListenerRef.current?.(e.nativeEvent)}
+            />
             <div
               className={styles.resizeHandle}
               style={dragStyles.leftHandleStyle}
