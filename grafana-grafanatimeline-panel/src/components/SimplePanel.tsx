@@ -240,7 +240,7 @@ export const SimplePanel: React.FC<Props> = ({
   wheelListenerRef.current = (e: WheelEvent) => {
     e.preventDefault(); // prevent page scroll
     const zoomBase = 0.8;
-    const zoomFactor = e.deltaY < 0 ? 1 / zoomBase : zoomBase;
+    const zoomFactor = e.deltaY < 0 ? zoomBase : 1 / zoomBase;
 
     const rect = u.root.getBoundingClientRect();
     const cursorX = e.clientX - rect.left - u.bbox.left;
@@ -323,23 +323,39 @@ export const SimplePanel: React.FC<Props> = ({
     let newFrom = origFrom;
     let newTo = origTo;
 
+    const MIN_WIDTH_PX = 10;
+
     const onMouseMove = (moveEvent: MouseEvent) => {
       const deltaPx = moveEvent.clientX - startX;
-      const deltaVal = u.posToVal(u.valToPos(origFrom, 'x') + deltaPx, 'x') - origFrom;
+
+      const origFromPx = u.valToPos(origFrom, 'x');
+      const origToPx = u.valToPos(origTo, 'x');
+
+      let fromPx = origFromPx;
+      let toPx = origToPx;
 
       if (kind === 'move') {
-        newFrom = origFrom + deltaVal;
-        newTo = origTo + deltaVal;
+        fromPx += deltaPx;
+        toPx += deltaPx;
       } else if (kind === 'left') {
-        newFrom = u.posToVal(u.valToPos(origFrom, 'x') + deltaPx, 'x');
+        fromPx = origFromPx + deltaPx;
+        if (toPx - fromPx < MIN_WIDTH_PX) {
+          fromPx = toPx - MIN_WIDTH_PX;
+        }
       } else if (kind === 'right') {
-        newTo = u.posToVal(u.valToPos(origTo, 'x') + deltaPx, 'x');
+        toPx = origToPx + deltaPx;
+        if (toPx - fromPx < MIN_WIDTH_PX) {
+          toPx = fromPx + MIN_WIDTH_PX;
+        }
       }
 
+      newFrom = u.posToVal(fromPx, 'x');
+      newTo = u.posToVal(toPx, 'x');
+
       u.setSelect({
-        left: u.valToPos(newFrom, 'x'),
+        left: fromPx,
         top: 0,
-        width: u.valToPos(newTo, 'x') - u.valToPos(newFrom, 'x'),
+        width: toPx - fromPx,
         height: u.bbox.height,
       });
       updateOverlay();
