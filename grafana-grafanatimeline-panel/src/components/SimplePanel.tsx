@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import {
   PanelProps,
   AbsoluteTimeRange,
@@ -81,6 +81,37 @@ export const SimplePanel: React.FC<Props> = ({
   const skipNextSelectUpdate = useRef(false);
   const uplotRef = useRef<uPlot | null>(null);
   const isDragging = useRef(false);
+  
+  const isPanning = useRef(false);
+
+  const handlePanStart = useCallback((e: MouseEvent | React.MouseEvent) => {
+    const u = uplotRef.current;
+    if (!u || isDragging.current) return;
+
+    const startX = e instanceof MouseEvent ? e.clientX : e.nativeEvent.clientX;
+    const startFrom = visibleRange.from;
+    const startTo = visibleRange.to;
+    const pixelsToMs = (startTo - startFrom) / u.bbox.width;
+
+    isPanning.current = true;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaPx = moveEvent.clientX - startX;
+      const deltaMs = -deltaPx * pixelsToMs;
+      const newFrom = startFrom + deltaMs;
+      const newTo = startTo + deltaMs;
+      setVisibleRange({ from: newFrom, to: newTo }, true);
+    };
+
+    const onMouseUp = () => {
+      isPanning.current = false;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  }, [visibleRange.from, visibleRange.to]);
 
   const [dragStyles, setDragStyles] = useState<{
     dragOverlayStyle?: React.CSSProperties;
@@ -203,6 +234,7 @@ export const SimplePanel: React.FC<Props> = ({
 
     b.addHook('ready', (u: uPlot) => {
       uplotRef.current = u;
+
       requestAnimationFrame(() => {
         const left = u.valToPos(timelineRange.from, 'x');
         const right = u.valToPos(timelineRange.to, 'x');
@@ -214,6 +246,24 @@ export const SimplePanel: React.FC<Props> = ({
         });
         updateOverlay();
       });
+
+      // Add pan drag to the bottom axis
+      const bottomAxis = u.root.querySelector('.u-axis') as HTMLElement;
+      if (bottomAxis) {
+        bottomAxis.style.cursor = 'grab';
+        const listener = (e: MouseEvent) => handlePanStart(e);
+        bottomAxis.addEventListener('mousedown', listener);
+        // Store cleanup
+        (u as any)._cleanupBottomAxisPan = () => {
+          bottomAxis.removeEventListener('mousedown', listener);
+        };
+      }
+    });
+
+    b.addHook('destroy', (u: uPlot) => {
+      if ((u as any)._cleanupBottomAxisPan) {
+        (u as any)._cleanupBottomAxisPan();
+      }
     });
 
     const internalConfig = b.getConfig();
