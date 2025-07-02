@@ -131,6 +131,10 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     const left = u.valToPos(timelineRange.from, 'x') + u.bbox.left;
     const right = u.valToPos(timelineRange.to, 'x') + u.bbox.left;
 
+    const handleWidth = 6;
+    const handleHeight = u.bbox.height * 0.6;
+    const topOffset = (u.bbox.height - handleHeight) / 2;
+
     setDragStyles({
       dragOverlayStyle: {
         position: 'absolute',
@@ -144,20 +148,24 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
       },
       leftHandleStyle: {
         position: 'absolute',
-        top: 0,
-        left,
-        width: 6,
-        height: u.bbox.height,
+        top: topOffset,
+        left: left - handleWidth,
+        width: handleWidth,
+        height: handleHeight,
         cursor: 'ew-resize',
+        background: 'rgba(0, 123, 255, 0.6)',
+        borderRadius: 2,
         zIndex: 11,
       },
       rightHandleStyle: {
         position: 'absolute',
-        top: 0,
-        left: right - 6,
-        width: 6,
-        height: u.bbox.height,
+        top: topOffset,
+        left: right,
+        width: handleWidth,
+        height: handleHeight,
         cursor: 'ew-resize',
+        background: 'rgba(0, 123, 255, 0.6)',
+        borderRadius: 2,
         zIndex: 11,
       },
     });
