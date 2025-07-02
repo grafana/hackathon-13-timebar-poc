@@ -149,13 +149,25 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     updateOverlay();
   }, [updateOverlay, visibleRange]);
 
-  useEffect(() => {
-    const matchesDashboard =
-      Math.abs(timelineRange.from - dashboardFrom) < 1000 && Math.abs(timelineRange.to - dashboardTo) < 1000;
+  const lastDashboardRange = useRef<AbsoluteTimeRange>({
+    from: dashboardFrom,
+    to: dashboardTo,
+  });
 
-    if (matchesDashboard) {
+  useEffect(() => {
+    const dashboardChanged =
+      lastDashboardRange.current.from !== dashboardFrom ||
+      lastDashboardRange.current.to !== dashboardTo;
+
+    const timelineMatchesDashboard =
+      Math.abs(timelineRange.from - dashboardFrom) < 1000 &&
+      Math.abs(timelineRange.to - dashboardTo) < 1000;
+
+    if (dashboardChanged && !timelineMatchesDashboard) {
       setTimelineRange({ from: dashboardFrom, to: dashboardTo });
     }
+
+    lastDashboardRange.current = { from: dashboardFrom, to: dashboardTo };
   }, [dashboardFrom, dashboardTo, timelineRange.from, timelineRange.to]);
 
   const setVisibleRange = (range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
