@@ -8,7 +8,11 @@ The timebar introduces spatial manipulation of time to Grafana dashboards (or ap
 
 This helps offload your mental stack so you can focus on what matters: the data, not the date math. The timebar gives you a clear visual anchor in the flow of time.
 
-https://github.com/user-attachments/assets/9a68d85c-6470-4ea1-8d59-1566c11c3fa7
+
+
+https://github.com/user-attachments/assets/092082a3-3747-404a-ac87-566acd19275a
+
+
 
 ### Controls
  - Pan / Zoom the time line via the buttons or with the mouse wheel for zoom and dragging on x-axis (without changing time selection)
