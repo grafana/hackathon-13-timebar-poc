@@ -50,11 +50,27 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
   const dashboardFrom = data.timeRange.from.valueOf();
   const dashboardTo = data.timeRange.to.valueOf();
 
+  const computeContextWindowFromSelection = (from: number, to: number): AbsoluteTimeRange => {
+    const mid = (from + to) / 2;
+    const span = to - from;
+    const zoomSpan = span * 8;
+
+    let newFrom = mid - zoomSpan / 2;
+    let newTo = mid + zoomSpan / 2;
+
+    if (newTo > now) {
+      const shift = newTo - now;
+      newFrom -= shift;
+      newTo = now;
+    }
+
+    return { from: newFrom, to: newTo };
+  };
+
   const [timelineRange, setTimelineRange] = useState({ from: dashboardFrom, to: dashboardTo });
-  const [visibleRange, setVisibleRangeState] = useState<AbsoluteTimeRange>({
-    from: dashboardFrom - 7 * 24 * 60 * 60 * 1000,
-    to: Math.min(dashboardTo, now),
-  });
+  const [visibleRange, setVisibleRangeState] = useState<AbsoluteTimeRange>(
+    computeContextWindowFromSelection(dashboardFrom, dashboardTo)
+  );
 
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const suppressNextDashboardUpdate = useRef(false);
@@ -197,6 +213,12 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     const shift = span * 0.25;
     const delta = direction === 'left' ? -shift : shift;
     setVisibleRange({ from: visibleRange.from + delta, to: visibleRange.to + delta }, true);
+  };
+
+  const resetContextWindow = () => {
+    const newRange = computeContextWindowFromSelection(timelineRange.from, timelineRange.to);
+    suppressNextDashboardUpdate.current = true;
+    setVisibleRange(newRange, true);
   };
 
   const builder = useMemo(() => {
@@ -452,6 +474,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
         <IconButton tooltip="Zoom out context" name="search-minus" onClick={() => zoomContextWindow(2)} />
         <IconButton tooltip="Zoom in context" name="search-plus" onClick={() => zoomContextWindow(0.5)} />
         <IconButton tooltip="Pan right" name="arrow-right" onClick={() => panContextWindow('right')} />
+        <IconButton tooltip="Reset context window" name="crosshair" onClick={resetContextWindow} />
       </div>
       <div style={{ position: 'relative', width: width - 100, height: 50 }}>
         <UPlotChart data={[timeValues, valueValues]} width={width - 100} height={50} config={builder} />
