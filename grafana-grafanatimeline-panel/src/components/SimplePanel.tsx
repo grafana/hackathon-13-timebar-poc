@@ -111,8 +111,10 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     if (!u) {
       return;
     }
+
     const left = u.valToPos(timelineRange.from, 'x') + u.bbox.left;
     const right = u.valToPos(timelineRange.to, 'x') + u.bbox.left;
+
     setDragStyles({
       dragOverlayStyle: {
         position: 'absolute',
@@ -147,15 +149,25 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
 
   useEffect(() => {
     updateOverlay();
-  }, [updateOverlay, visibleRange]);
+  }, [updateOverlay, visibleRange, timelineRange.from, timelineRange.to]);
+
+  const lastDashboardRange = useRef<AbsoluteTimeRange>({
+    from: dashboardFrom,
+    to: dashboardTo,
+  });
 
   useEffect(() => {
-    const matchesDashboard =
+    const dashboardChanged =
+      lastDashboardRange.current.from !== dashboardFrom || lastDashboardRange.current.to !== dashboardTo;
+
+    const timelineMatchesDashboard =
       Math.abs(timelineRange.from - dashboardFrom) < 1000 && Math.abs(timelineRange.to - dashboardTo) < 1000;
 
-    if (matchesDashboard) {
+    if (dashboardChanged && !timelineMatchesDashboard) {
       setTimelineRange({ from: dashboardFrom, to: dashboardTo });
     }
+
+    lastDashboardRange.current = { from: dashboardFrom, to: dashboardTo };
   }, [dashboardFrom, dashboardTo, timelineRange.from, timelineRange.to]);
 
   const setVisibleRange = (range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
@@ -405,16 +417,31 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
                   timelineRange={timelineRange}
                   visibleRange={visibleRange}
                   setVisibleRange={(r) => {
-                    const visibleSpan = visibleRange.to - visibleRange.from;
-                    const relFrom = (timelineRange.from - visibleRange.from) / visibleSpan;
-                    const relTo = (timelineRange.to - visibleRange.from) / visibleSpan;
+                    const oldVisibleFrom = visibleRange.from;
+                    const oldVisibleTo = visibleRange.to;
+                    const visibleSpan = oldVisibleTo - oldVisibleFrom;
+
+                    const relFrom = (timelineRange.from - oldVisibleFrom) / visibleSpan;
+                    const relTo = (timelineRange.to - oldVisibleFrom) / visibleSpan;
+
                     const newVisibleFrom = r.from;
                     const newVisibleTo = r.to;
+
                     const newTimelineFrom = newVisibleFrom + relFrom * (newVisibleTo - newVisibleFrom);
                     const newTimelineTo = newVisibleFrom + relTo * (newVisibleTo - newVisibleFrom);
-                    setTimelineRange({ from: newTimelineFrom, to: newTimelineTo });
+
                     setVisibleRange(r, true);
+                    requestAnimationFrame(() => {
+                      suppressNextDashboardUpdate.current = true;
+                      setTimelineRange({ from: newTimelineFrom, to: newTimelineTo });
+
+                      const u = uplotRef.current;
+                      if (u) {
+                        u.setSelect({ left: 0, top: 0, width: 0, height: 0 });
+                      }
+                    });
                   }}
+                  setTimelineRange={setTimelineRange}
                   onClose={() => setAnchorEl(null)}
                 />
               </div>

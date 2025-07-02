@@ -10,6 +10,7 @@ interface Props {
   timelineRange: AbsoluteTimeRange;
   visibleRange: AbsoluteTimeRange;
   setVisibleRange: (r: AbsoluteTimeRange) => void;
+  setTimelineRange: (r: AbsoluteTimeRange) => void;
   onClose: () => void;
 }
 
@@ -29,6 +30,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
   timelineRange,
   visibleRange,
   setVisibleRange,
+  setTimelineRange,
   onClose,
 }) => {
   const [fromText, setFromText] = useState<string>(dateTime(visibleRange.from).toISOString());
@@ -48,27 +50,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
   }, [wrapperRef, onClose]);
 
   const applyWindow = (newRange: AbsoluteTimeRange) => {
-    const percentStart = (timelineRange.from - dashboardFrom) / (dashboardTo - dashboardFrom);
-    const percentEnd = (timelineRange.to - dashboardFrom) / (dashboardTo - dashboardFrom);
-
     setVisibleRange(newRange);
-
-    const u = uplotRef.current;
-    if (u) {
-      requestAnimationFrame(() => {
-        const brushFrom = newRange.from + percentStart * (newRange.to - newRange.from);
-        const brushTo = newRange.from + percentEnd * (newRange.to - newRange.from);
-        const left = u.valToPos(brushFrom, 'x');
-        const right = u.valToPos(brushTo, 'x');
-        u.setSelect({
-          left,
-          top: 0,
-          width: right - left,
-          height: u.bbox.height,
-        });
-      });
-    }
-
     onClose();
   };
 
