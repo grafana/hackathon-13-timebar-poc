@@ -6,7 +6,7 @@ interface Props {
   dashboardFrom: number;
   dashboardTo: number;
   now: number;
-  uplotRef: React.MutableRefObject<uPlot | null>;
+  uplotRef: React.RefObject<uPlot | null>;
   timelineRange: AbsoluteTimeRange;
   visibleRange: AbsoluteTimeRange;
   setVisibleRange: (r: AbsoluteTimeRange) => void;
