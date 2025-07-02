@@ -1,19 +1,8 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import {
-  PanelProps,
-  AbsoluteTimeRange,
-} from '@grafana/data';
+import { PanelProps, AbsoluteTimeRange } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from '@emotion/css';
-import {
-  AxisPlacement,
-  UPlotChart,
-  UPlotConfigBuilder,
-  useStyles2,
-  useTheme2,
-  IconButton,
-  Popover,
-} from '@grafana/ui';
+import { AxisPlacement, UPlotChart, UPlotConfigBuilder, useStyles2, useTheme2, IconButton, Popover } from '@grafana/ui';
 import { PanelDataErrorView } from '@grafana/runtime';
 import { ContextWindowSelector } from './ContextWindowSelector';
 
@@ -53,15 +42,7 @@ const getStyles = (theme: ReturnType<typeof useTheme2>) => ({
   `,
 });
 
-export const SimplePanel: React.FC<Props> = ({
-  options,
-  data,
-  width,
-  height,
-  fieldConfig,
-  id,
-  onChangeTimeRange,
-}) => {
+export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fieldConfig, id, onChangeTimeRange }) => {
   const theme = useTheme2();
   const styles = useStyles2(() => getStyles(theme));
   const now = Date.now();
@@ -81,38 +62,43 @@ export const SimplePanel: React.FC<Props> = ({
   const skipNextSelectUpdate = useRef(false);
   const uplotRef = useRef<uPlot | null>(null);
   const isDragging = useRef(false);
-  
+
   const isPanning = useRef(false);
   const wheelListenerRef = useRef<((e: WheelEvent) => void) | null>(null);
 
-  const handlePanStart = useCallback((e: MouseEvent | React.MouseEvent) => {
-    const u = uplotRef.current;
-    if (!u || isDragging.current) return;
+  const handlePanStart = useCallback(
+    (e: MouseEvent | React.MouseEvent) => {
+      const u = uplotRef.current;
+      if (!u || isDragging.current) {
+        return;
+      }
 
-    const startX = e instanceof MouseEvent ? e.clientX : e.nativeEvent.clientX;
-    const startFrom = visibleRange.from;
-    const startTo = visibleRange.to;
-    const pixelsToMs = (startTo - startFrom) / u.bbox.width;
+      const startX = e instanceof MouseEvent ? e.clientX : e.nativeEvent.clientX;
+      const startFrom = visibleRange.from;
+      const startTo = visibleRange.to;
+      const pixelsToMs = (startTo - startFrom) / u.bbox.width;
 
-    isPanning.current = true;
+      isPanning.current = true;
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
-      const deltaPx = moveEvent.clientX - startX;
-      const deltaMs = -deltaPx * pixelsToMs;
-      const newFrom = startFrom + deltaMs;
-      const newTo = startTo + deltaMs;
-      setVisibleRange({ from: newFrom, to: newTo }, true);
-    };
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        const deltaPx = moveEvent.clientX - startX;
+        const deltaMs = -deltaPx * pixelsToMs;
+        const newFrom = startFrom + deltaMs;
+        const newTo = startTo + deltaMs;
+        setVisibleRange({ from: newFrom, to: newTo }, true);
+      };
 
-    const onMouseUp = () => {
-      isPanning.current = false;
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
+      const onMouseUp = () => {
+        isPanning.current = false;
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
 
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  }, [visibleRange.from, visibleRange.to]);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    },
+    [visibleRange.from, visibleRange.to]
+  );
 
   const [dragStyles, setDragStyles] = useState<{
     dragOverlayStyle?: React.CSSProperties;
@@ -120,9 +106,11 @@ export const SimplePanel: React.FC<Props> = ({
     rightHandleStyle?: React.CSSProperties;
   }>({});
 
-  const updateOverlay = () => {
+  const updateOverlay = useCallback(() => {
     const u = uplotRef.current;
-    if (!u) return;
+    if (!u) {
+      return;
+    }
     const left = u.valToPos(timelineRange.from, 'x') + u.bbox.left;
     const right = u.valToPos(timelineRange.to, 'x') + u.bbox.left;
     setDragStyles({
@@ -155,16 +143,15 @@ export const SimplePanel: React.FC<Props> = ({
         zIndex: 11,
       },
     });
-  };
+  }, [timelineRange]);
 
   useEffect(() => {
     updateOverlay();
-  }, [timelineRange, visibleRange]);
+  }, [updateOverlay, visibleRange]);
 
   useEffect(() => {
     const matchesDashboard =
-      Math.abs(timelineRange.from - dashboardFrom) < 1000 &&
-      Math.abs(timelineRange.to - dashboardTo) < 1000;
+      Math.abs(timelineRange.from - dashboardFrom) < 1000 && Math.abs(timelineRange.to - dashboardTo) < 1000;
 
     if (matchesDashboard) {
       setTimelineRange({ from: dashboardFrom, to: dashboardTo });
@@ -180,14 +167,14 @@ export const SimplePanel: React.FC<Props> = ({
     }
   };
 
-  const timeField = data.series[0]?.fields.find(f => f.type === 'time');
-  const valueField = data.series[0]?.fields.find(f => f.type === 'number');
-  const timeValues = timeField?.values.toArray() ?? [];
-  const valueValues = valueField?.values.toArray() ?? [];
+  const timeField = data.series[0]?.fields.find((f) => f.type === 'time');
+  const valueField = data.series[0]?.fields.find((f) => f.type === 'number');
+  const timeValues = timeField?.values ?? [];
+  const valueValues = valueField?.values ?? [];
 
   const zoomContextWindow = (factor: number) => {
     const mid = (visibleRange.from + visibleRange.to) / 2;
-    const span = (visibleRange.to - visibleRange.from) * factor / 2;
+    const span = ((visibleRange.to - visibleRange.from) * factor) / 2;
     const newFrom = mid - span;
     const newTo = mid + span;
     setVisibleRange({ from: newFrom, to: newTo }, true);
@@ -218,7 +205,9 @@ export const SimplePanel: React.FC<Props> = ({
         skipNextSelectUpdate.current = false;
         return;
       }
-      if (isDragging.current) return;
+      if (isDragging.current) {
+        return;
+      }
 
       const xDrag = Boolean(u.cursor?.drag?.x);
       if (xDrag && u.select.left != null && u.select.width != null) {
@@ -234,60 +223,60 @@ export const SimplePanel: React.FC<Props> = ({
     });
 
     b.addHook('ready', (u: uPlot) => {
-  uplotRef.current = u;
+      uplotRef.current = u;
 
-  // Store the wheel listener so it can be reused in the overlay div
-  wheelListenerRef.current = (e: WheelEvent) => {
-    e.preventDefault(); // prevent page scroll
-    const zoomBase = 0.8;
-    const zoomFactor = e.deltaY < 0 ? zoomBase : 1 / zoomBase;
+      // Store the wheel listener so it can be reused in the overlay div
+      wheelListenerRef.current = (e: WheelEvent) => {
+        e.preventDefault(); // prevent page scroll
+        const zoomBase = 0.8;
+        const zoomFactor = e.deltaY < 0 ? zoomBase : 1 / zoomBase;
 
-    const rect = u.root.getBoundingClientRect();
-    const cursorX = e.clientX - rect.left - u.bbox.left;
-    const cursorVal = u.posToVal(cursorX, 'x');
+        const rect = u.root.getBoundingClientRect();
+        const cursorX = e.clientX - rect.left - u.bbox.left;
+        const cursorVal = u.posToVal(cursorX, 'x');
 
-    const span = visibleRange.to - visibleRange.from;
-    const newSpan = span * zoomFactor;
-    const newFrom = cursorVal - ((cursorVal - visibleRange.from) / span) * newSpan;
-    const newTo = newFrom + newSpan;
+        const span = visibleRange.to - visibleRange.from;
+        const newSpan = span * zoomFactor;
+        const newFrom = cursorVal - ((cursorVal - visibleRange.from) / span) * newSpan;
+        const newTo = newFrom + newSpan;
 
-    setVisibleRange({ from: newFrom, to: newTo }, true);
-  };
+        setVisibleRange({ from: newFrom, to: newTo }, true);
+      };
 
-  // Attach wheel zoom to uPlot overlay
-  const over = u.root.querySelector('.u-over') as HTMLElement;
-  if (over && wheelListenerRef.current) {
-    over.addEventListener('wheel', wheelListenerRef.current, { passive: false });
+      // Attach wheel zoom to uPlot overlay
+      const over = u.root.querySelector('.u-over') as HTMLElement;
+      if (over && wheelListenerRef.current) {
+        over.addEventListener('wheel', wheelListenerRef.current, { passive: false });
 
-    (u as any)._cleanupWheelZoom = () => {
-      over.removeEventListener('wheel', wheelListenerRef.current!);
-    };
-  }
+        (u as any)._cleanupWheelZoom = () => {
+          over.removeEventListener('wheel', wheelListenerRef.current!);
+        };
+      }
 
-  // Draw selection brush
-  requestAnimationFrame(() => {
-    const left = u.valToPos(timelineRange.from, 'x');
-    const right = u.valToPos(timelineRange.to, 'x');
-    u.setSelect({
-      left,
-      top: 0,
-      width: right - left,
-      height: u.bbox.height,
+      // Draw selection brush
+      requestAnimationFrame(() => {
+        const left = u.valToPos(timelineRange.from, 'x');
+        const right = u.valToPos(timelineRange.to, 'x');
+        u.setSelect({
+          left,
+          top: 0,
+          width: right - left,
+          height: u.bbox.height,
+        });
+        updateOverlay();
+      });
+
+      // Enable pan drag on bottom axis
+      const bottomAxis = u.root.querySelector('.u-axis') as HTMLElement;
+      if (bottomAxis) {
+        bottomAxis.style.cursor = 'grab';
+        const listener = (e: MouseEvent) => handlePanStart(e);
+        bottomAxis.addEventListener('mousedown', listener);
+        (u as any)._cleanupBottomAxisPan = () => {
+          bottomAxis.removeEventListener('mousedown', listener);
+        };
+      }
     });
-    updateOverlay();
-  });
-
-  // Enable pan drag on bottom axis
-  const bottomAxis = u.root.querySelector('.u-axis') as HTMLElement;
-  if (bottomAxis) {
-    bottomAxis.style.cursor = 'grab';
-    const listener = (e: MouseEvent) => handlePanStart(e);
-    bottomAxis.addEventListener('mousedown', listener);
-    (u as any)._cleanupBottomAxisPan = () => {
-      bottomAxis.removeEventListener('mousedown', listener);
-    };
-  }
-});
 
     b.addHook('destroy', (u: uPlot) => {
       if ((u as any)._cleanupBottomAxisPan) {
@@ -306,11 +295,22 @@ export const SimplePanel: React.FC<Props> = ({
     };
 
     return b;
-  }, [theme, visibleRange.from, visibleRange.to, timelineRange.from, timelineRange.to]);
+  }, [
+    theme,
+    visibleRange.from,
+    visibleRange.to,
+    timelineRange.from,
+    timelineRange.to,
+    handlePanStart,
+    onChangeTimeRange,
+    updateOverlay,
+  ]);
 
   const handleDrag = (e: React.MouseEvent, kind: 'move' | 'left' | 'right') => {
     const u = uplotRef.current;
-    if (!u) return;
+    if (!u) {
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -367,7 +367,9 @@ export const SimplePanel: React.FC<Props> = ({
       isDragging.current = false;
 
       u.setSelect({ left: 0, width: 0, top: 0, height: 0 });
-      if (u.cursor?.drag) u.cursor.drag.x = false;
+      if (u.cursor?.drag) {
+        u.cursor.drag.x = false;
+      }
 
       const newRange = { from: newFrom, to: newTo };
       setTimelineRange(newRange);
@@ -388,11 +390,7 @@ export const SimplePanel: React.FC<Props> = ({
   return (
     <div className={cx(styles.wrapper)} style={{ width, height }}>
       <div className={styles.controlRow}>
-        <IconButton
-          name="calendar-alt"
-          tooltip="Set context window"
-          onClick={(e) => setAnchorEl(e.currentTarget)}
-        />
+        <IconButton name="calendar-alt" tooltip="Set context window" onClick={(e) => setAnchorEl(e.currentTarget)} />
         {anchorEl && (
           <Popover
             referenceElement={anchorEl}
