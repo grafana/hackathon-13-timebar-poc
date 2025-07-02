@@ -6,7 +6,7 @@ interface Props {
   dashboardFrom: number;
   dashboardTo: number;
   now: number;
-  uplotRef: React.MutableRefObject<uPlot | null>;
+  uplotRef: React.RefObject<uPlot | null>;
   timelineRange: AbsoluteTimeRange;
   visibleRange: AbsoluteTimeRange;
   setVisibleRange: (r: AbsoluteTimeRange) => void;
@@ -97,14 +97,8 @@ export const ContextWindowSelector: React.FC<Props> = ({
 
   return (
     <div ref={wrapperRef} style={{ padding: 10, width: 350 }}>
-      {OPTIONS.map(opt => (
-        <Button
-          key={opt.value}
-          fullWidth
-          variant="secondary"
-          size="sm"
-          onClick={() => applyExtraWindow(opt.value)}
-        >
+      {OPTIONS.map((opt) => (
+        <Button key={opt.value} fullWidth variant="secondary" size="sm" onClick={() => applyExtraWindow(opt.value)}>
           {opt.label}
         </Button>
       ))}
@@ -125,11 +119,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
       <div style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ marginRight: 6 }}>From:</span>
-          <Input
-            width={25}
-            value={fromText}
-            onChange={(e) => setFromText(e.currentTarget.value)}
-          />
+          <Input width={25} value={fromText} onChange={(e) => setFromText(e.currentTarget.value)} />
           <Button
             icon="calendar-alt"
             size="sm"
@@ -147,11 +137,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', margin: '10px 0 6px' }}>
           <span style={{ marginRight: 6 }}>To:</span>
-          <Input
-            width={25}
-            value={toText}
-            onChange={(e) => setToText(e.currentTarget.value)}
-          />
+          <Input width={25} value={toText} onChange={(e) => setToText(e.currentTarget.value)} />
           <Button
             icon="calendar-alt"
             size="sm"
@@ -167,13 +153,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
           />
         )}
 
-        <Button
-          fullWidth
-          size="sm"
-          variant="primary"
-          onClick={applyAbsoluteRange}
-          style={{ marginTop: 10 }}
-        >
+        <Button fullWidth size="sm" variant="primary" onClick={applyAbsoluteRange} style={{ marginTop: 10 }}>
           Apply Absolute Range
         </Button>
       </div>
