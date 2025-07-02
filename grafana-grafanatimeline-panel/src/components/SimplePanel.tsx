@@ -143,7 +143,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
         zIndex: 11,
       },
     });
-  }, [timelineRange]);
+  }, [timelineRange.from, timelineRange.to]);
 
   useEffect(() => {
     updateOverlay();
