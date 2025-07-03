@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { PanelProps, AbsoluteTimeRange, durationToMilliseconds, parseDuration  } from '@grafana/data';
+import { PanelProps, AbsoluteTimeRange, durationToMilliseconds, parseDuration } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from '@emotion/css';
 import { AxisPlacement, UPlotChart, UPlotConfigBuilder, useStyles2, useTheme2, IconButton, Popover } from '@grafana/ui';
@@ -86,17 +86,14 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
   const isPanning = useRef(false);
   const wheelListenerRef = useRef<((e: WheelEvent) => void) | null>(null);
 
-  const setVisibleRange = useCallback(
-    (range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
-      setVisibleRangeState(range);
-      if (suppressDashboardUpdate) {
-        suppressNextDashboardUpdate.current = true;
-        skipNextSelectUpdate.current = true;
-        isProgrammaticSelect.current = true;
-      }
-    },
-    []
-  );
+  const setVisibleRange = useCallback((range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
+    setVisibleRangeState(range);
+    if (suppressDashboardUpdate) {
+      suppressNextDashboardUpdate.current = true;
+      skipNextSelectUpdate.current = true;
+      isProgrammaticSelect.current = true;
+    }
+  }, []);
 
   const handlePanStart = useCallback(
     (e: MouseEvent | React.MouseEvent) => {
@@ -191,11 +188,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
   useEffect(() => {
     const raw = data.timeRange.raw;
 
-    if (
-      typeof raw.from === 'string' &&
-      typeof raw.to === 'string' &&
-      raw.to === 'now'
-    ) {
+    if (typeof raw.from === 'string' && typeof raw.to === 'string' && raw.to === 'now') {
       const fromStr = raw.from as string;
       const match = fromStr.match(/^now-(\d+[smhdw])$/); // e.g. '2d', '5m', '1h', etc.
       if (match) {
@@ -213,7 +206,6 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     to: dashboardTo,
   });
 
-
   useEffect(() => {
     const dashboardChanged =
       lastDashboardRange.current.from !== dashboardFrom || lastDashboardRange.current.to !== dashboardTo;
@@ -227,8 +219,6 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
 
     lastDashboardRange.current = { from: dashboardFrom, to: dashboardTo };
   }, [dashboardFrom, dashboardTo, timelineRange.from, timelineRange.to]);
-
-
 
   useEffect(() => {
     if (!applyRelativeContextWindow.current) {
@@ -244,9 +234,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
       suppressNextDashboardUpdate.current = true;
       setTimelineRange({ from: brushFrom, to: brushTo });
 
-      const sameRange =
-        Math.abs(visibleRange.from - brushFrom) < 10 &&
-        Math.abs(visibleRange.to - brushTo) < 10;
+      const sameRange = Math.abs(visibleRange.from - brushFrom) < 10 && Math.abs(visibleRange.to - brushTo) < 10;
 
       if (sameRange) {
         const context = computeContextWindowFromSelection(brushFrom, brushTo);
@@ -266,7 +254,6 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     setVisibleRange,
     computeContextWindowFromSelection,
   ]);
-
 
   const timeField = data.series[0]?.fields.find((f) => f.type === 'time');
   const valueField = data.series[0]?.fields.find((f) => f.type === 'number');
