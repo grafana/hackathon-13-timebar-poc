@@ -11,6 +11,7 @@ interface Props {
   visibleRange: AbsoluteTimeRange;
   setVisibleRange: (r: AbsoluteTimeRange) => void;
   setTimelineRange: (r: AbsoluteTimeRange) => void;
+  setRelativeContextDuration?: (duration: string | null) => void;
   onClose: () => void;
 }
 
@@ -31,6 +32,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
   visibleRange,
   setVisibleRange,
   setTimelineRange,
+  setRelativeContextDuration,
   onClose,
 }) => {
   const [fromText, setFromText] = useState<string>(dateTime(visibleRange.from).toISOString());
@@ -60,6 +62,9 @@ export const ContextWindowSelector: React.FC<Props> = ({
       const newFrom = dashboardFrom - extraWindow;
       const newTo = Math.min(dashboardTo + extraWindow, now);
       applyWindow({ from: newFrom, to: newTo });
+      if (setRelativeContextDuration) {
+        setRelativeContextDuration(duration);
+      }
     } catch (err) {
       console.error('Failed to parse duration', err);
     }
@@ -71,6 +76,9 @@ export const ContextWindowSelector: React.FC<Props> = ({
       const to = dateTime(toText).valueOf();
       if (!isNaN(from) && !isNaN(to) && from < to) {
         applyWindow({ from, to });
+        if (setRelativeContextDuration) {
+          setRelativeContextDuration(null);
+        }
       }
     } catch (err) {
       console.error('Failed to parse absolute range', err);

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect, useCallback } from 'react';
-import { PanelProps, AbsoluteTimeRange } from '@grafana/data';
+import { PanelProps, AbsoluteTimeRange, durationToMilliseconds, parseDuration  } from '@grafana/data';
 import { SimpleOptions } from 'types';
 import { css, cx } from '@emotion/css';
 import { AxisPlacement, UPlotChart, UPlotConfigBuilder, useStyles2, useTheme2, IconButton, Popover } from '@grafana/ui';
@@ -50,22 +50,25 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
   const dashboardFrom = data.timeRange.from.valueOf();
   const dashboardTo = data.timeRange.to.valueOf();
 
-  const computeContextWindowFromSelection = (from: number, to: number): AbsoluteTimeRange => {
-    const mid = (from + to) / 2;
-    const span = to - from;
-    const zoomSpan = span * 8;
+  const computeContextWindowFromSelection = useCallback(
+    (from: number, to: number): AbsoluteTimeRange => {
+      const mid = (from + to) / 2;
+      const span = to - from;
+      const zoomSpan = span * 8;
 
-    let newFrom = mid - zoomSpan / 2;
-    let newTo = mid + zoomSpan / 2;
+      let newFrom = mid - zoomSpan / 2;
+      let newTo = mid + zoomSpan / 2;
 
-    if (newTo > now) {
-      const shift = newTo - now;
-      newFrom -= shift;
-      newTo = now;
-    }
+      if (newTo > now) {
+        const shift = newTo - now;
+        newFrom -= shift;
+        newTo = now;
+      }
 
-    return { from: newFrom, to: newTo };
-  };
+      return { from: newFrom, to: newTo };
+    },
+    [now]
+  );
 
   const [timelineRange, setTimelineRange] = useState({ from: dashboardFrom, to: dashboardTo });
   const [visibleRange, setVisibleRangeState] = useState<AbsoluteTimeRange>(
@@ -78,9 +81,22 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
   const skipNextSelectUpdate = useRef(false);
   const uplotRef = useRef<uPlot | null>(null);
   const isDragging = useRef(false);
+  const applyRelativeContextWindow = useRef<string | null>(null);
 
   const isPanning = useRef(false);
   const wheelListenerRef = useRef<((e: WheelEvent) => void) | null>(null);
+
+  const setVisibleRange = useCallback(
+    (range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
+      setVisibleRangeState(range);
+      if (suppressDashboardUpdate) {
+        suppressNextDashboardUpdate.current = true;
+        skipNextSelectUpdate.current = true;
+        isProgrammaticSelect.current = true;
+      }
+    },
+    []
+  );
 
   const handlePanStart = useCallback(
     (e: MouseEvent | React.MouseEvent) => {
@@ -95,6 +111,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
       const pixelsToMs = (startTo - startFrom) / u.bbox.width;
 
       isPanning.current = true;
+      suppressNextDashboardUpdate.current = true;
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         const deltaPx = moveEvent.clientX - startX;
@@ -113,7 +130,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
       window.addEventListener('mousemove', onMouseMove);
       window.addEventListener('mouseup', onMouseUp);
     },
-    [visibleRange.from, visibleRange.to]
+    [setVisibleRange, visibleRange.from, visibleRange.to]
   );
 
   const [dragStyles, setDragStyles] = useState<{
@@ -172,6 +189,22 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
   }, [timelineRange.from, timelineRange.to]);
 
   useEffect(() => {
+    const raw = data.timeRange.raw;
+
+    if (
+      typeof raw.from === 'string' &&
+      typeof raw.to === 'string' &&
+      raw.to === 'now'
+    ) {
+      const fromStr = raw.from as string;
+      const match = fromStr.match(/^now-(\d+[smhdw])$/); // e.g. '2d', '5m', '1h', etc.
+      if (match) {
+        applyRelativeContextWindow.current = match[1]; // trigger relative context update
+      }
+    }
+  }, [data.timeRange.raw]);
+
+  useEffect(() => {
     updateOverlay();
   }, [updateOverlay, visibleRange, timelineRange.from, timelineRange.to]);
 
@@ -179,6 +212,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     from: dashboardFrom,
     to: dashboardTo,
   });
+
 
   useEffect(() => {
     const dashboardChanged =
@@ -194,14 +228,45 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     lastDashboardRange.current = { from: dashboardFrom, to: dashboardTo };
   }, [dashboardFrom, dashboardTo, timelineRange.from, timelineRange.to]);
 
-  const setVisibleRange = (range: AbsoluteTimeRange, suppressDashboardUpdate = false) => {
-    setVisibleRangeState(range);
-    if (suppressDashboardUpdate) {
-      suppressNextDashboardUpdate.current = true;
-      skipNextSelectUpdate.current = true;
-      isProgrammaticSelect.current = true;
+
+
+  useEffect(() => {
+    if (!applyRelativeContextWindow.current) {
+      return;
     }
-  };
+
+    try {
+      const durMs = durationToMilliseconds(parseDuration(applyRelativeContextWindow.current));
+      const brushTo = dashboardTo;
+      const brushFrom = dashboardTo - durMs;
+
+      // Only set the brush
+      suppressNextDashboardUpdate.current = true;
+      setTimelineRange({ from: brushFrom, to: brushTo });
+
+      const sameRange =
+        Math.abs(visibleRange.from - brushFrom) < 10 &&
+        Math.abs(visibleRange.to - brushTo) < 10;
+
+      if (sameRange) {
+        const context = computeContextWindowFromSelection(brushFrom, brushTo);
+        setVisibleRange(context, true);
+      }
+    } catch (err) {
+      console.error('Failed to apply relative context window', err);
+    } finally {
+      applyRelativeContextWindow.current = null;
+    }
+  }, [
+    dashboardTo,
+    dashboardFrom,
+    visibleRange.from,
+    visibleRange.to,
+    setTimelineRange,
+    setVisibleRange,
+    computeContextWindowFromSelection,
+  ]);
+
 
   const timeField = data.series[0]?.fields.find((f) => f.type === 'time');
   const valueField = data.series[0]?.fields.find((f) => f.type === 'number');
@@ -247,6 +312,11 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
         skipNextSelectUpdate.current = false;
         return;
       }
+
+      if (isPanning.current) {
+        return;
+      }
+
       if (isDragging.current) {
         return;
       }
@@ -257,9 +327,11 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
         const to = u.posToVal(u.select.left + u.select.width, 'x');
         const newRange: AbsoluteTimeRange = { from, to };
         setTimelineRange(newRange);
+
         if (!suppressNextDashboardUpdate.current) {
           onChangeTimeRange(newRange);
         }
+
         suppressNextDashboardUpdate.current = false;
       }
     });
@@ -343,6 +415,7 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
     visibleRange.to,
     timelineRange.from,
     timelineRange.to,
+    setVisibleRange,
     handlePanStart,
     onChangeTimeRange,
     updateOverlay,
@@ -470,6 +543,9 @@ export const SimplePanel: React.FC<Props> = ({ options, data, width, height, fie
                         u.setSelect({ left: 0, top: 0, width: 0, height: 0 });
                       }
                     });
+                  }}
+                  setRelativeContextDuration={(d) => {
+                    applyRelativeContextWindow.current = d;
                   }}
                   setTimelineRange={setTimelineRange}
                   onClose={() => setAnchorEl(null)}
