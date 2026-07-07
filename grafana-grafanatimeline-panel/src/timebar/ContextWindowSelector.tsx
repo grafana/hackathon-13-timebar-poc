@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Button, Input, DatePickerWithInput } from '@grafana/ui';
-import { AbsoluteTimeRange, parseDuration, durationToMilliseconds, dateTime } from '@grafana/data';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, DatePickerWithInput, Input } from '@grafana/ui';
+import { dateTime } from '@grafana/data';
+import { TimeRangeMs } from './timeModel';
+import { durationToMs } from './duration';
 
 interface Props {
-  dashboardFrom: number;
-  dashboardTo: number;
-  now: number;
-  uplotRef: React.RefObject<uPlot | null>;
-  timelineRange: AbsoluteTimeRange;
-  visibleRange: AbsoluteTimeRange;
-  setVisibleRange: (r: AbsoluteTimeRange) => void;
-  setTimelineRange: (r: AbsoluteTimeRange) => void;
-  setRelativeContextDuration?: (duration: string | null) => void;
+  /** The current context window, used to seed the absolute-range inputs. */
+  contextWindow: TimeRangeMs;
+  /** Apply a relative context window that extends the dashboard range by the given duration each side. */
+  onApplyRelative: (duration: string) => void;
+  /** Apply an absolute context window. */
+  onApplyAbsolute: (range: TimeRangeMs) => void;
   onClose: () => void;
 }
 
-const OPTIONS = [
+const PRESETS = [
   { label: 'Same as timepicker', value: '0h' },
   { label: 'Last 24 hours', value: '24h' },
   { label: 'Last 1 week', value: '7d' },
@@ -23,20 +22,9 @@ const OPTIONS = [
   { label: 'Last 30 days', value: '30d' },
 ];
 
-export const ContextWindowSelector: React.FC<Props> = ({
-  dashboardFrom,
-  dashboardTo,
-  now,
-  uplotRef,
-  timelineRange,
-  visibleRange,
-  setVisibleRange,
-  setTimelineRange,
-  setRelativeContextDuration,
-  onClose,
-}) => {
-  const [fromText, setFromText] = useState<string>(dateTime(visibleRange.from).toISOString());
-  const [toText, setToText] = useState<string>(dateTime(visibleRange.to).toISOString());
+export const ContextWindowSelector: React.FC<Props> = ({ contextWindow, onApplyRelative, onApplyAbsolute, onClose }) => {
+  const [fromText, setFromText] = useState(() => dateTime(contextWindow.from).toISOString());
+  const [toText, setToText] = useState(() => dateTime(contextWindow.to).toISOString());
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -49,46 +37,29 @@ export const ContextWindowSelector: React.FC<Props> = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [wrapperRef, onClose]);
+  }, [onClose]);
 
-  const applyWindow = (newRange: AbsoluteTimeRange) => {
-    setVisibleRange(newRange);
+  const applyRelative = (duration: string) => {
+    if (durationToMs(duration) == null) {
+      return; // ignore invalid durations; keep the popover open so it can be corrected
+    }
+    onApplyRelative(duration);
     onClose();
   };
 
-  const applyExtraWindow = (duration: string) => {
-    try {
-      const extraWindow = durationToMilliseconds(parseDuration(duration));
-      const newFrom = dashboardFrom - extraWindow;
-      const newTo = Math.min(dashboardTo + extraWindow, now);
-      applyWindow({ from: newFrom, to: newTo });
-      if (setRelativeContextDuration) {
-        setRelativeContextDuration(duration);
-      }
-    } catch (err) {
-      console.error('Failed to parse duration', err);
-    }
-  };
-
-  const applyAbsoluteRange = () => {
-    try {
-      const from = dateTime(fromText).valueOf();
-      const to = dateTime(toText).valueOf();
-      if (!isNaN(from) && !isNaN(to) && from < to) {
-        applyWindow({ from, to });
-        if (setRelativeContextDuration) {
-          setRelativeContextDuration(null);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to parse absolute range', err);
+  const applyAbsolute = () => {
+    const from = dateTime(fromText).valueOf();
+    const to = dateTime(toText).valueOf();
+    if (Number.isFinite(from) && Number.isFinite(to) && from < to) {
+      onApplyAbsolute({ from, to });
+      onClose();
     }
   };
 
   return (
     <div ref={wrapperRef} style={{ padding: 10, width: 350 }}>
-      {OPTIONS.map((opt) => (
-        <Button key={opt.value} fullWidth variant="secondary" size="sm" onClick={() => applyExtraWindow(opt.value)}>
+      {PRESETS.map((opt) => (
+        <Button key={opt.value} fullWidth variant="secondary" size="sm" onClick={() => applyRelative(opt.value)}>
           {opt.label}
         </Button>
       ))}
@@ -99,8 +70,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
           placeholder="Custom duration (e.g. 12h)"
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              const val = (e.target as HTMLInputElement).value;
-              applyExtraWindow(val);
+              applyRelative((e.target as HTMLInputElement).value);
             }
           }}
         />
@@ -114,7 +84,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
             icon="calendar-alt"
             size="sm"
             variant="secondary"
-            onClick={() => setShowFromPicker(true)}
+            onClick={() => setShowFromPicker((v) => !v)}
             style={{ marginLeft: 8 }}
           />
         </div>
@@ -132,7 +102,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
             icon="calendar-alt"
             size="sm"
             variant="secondary"
-            onClick={() => setShowToPicker(true)}
+            onClick={() => setShowToPicker((v) => !v)}
             style={{ marginLeft: 8 }}
           />
         </div>
@@ -143,7 +113,7 @@ export const ContextWindowSelector: React.FC<Props> = ({
           />
         )}
 
-        <Button fullWidth size="sm" variant="primary" onClick={applyAbsoluteRange} style={{ marginTop: 10 }}>
+        <Button fullWidth size="sm" variant="primary" onClick={applyAbsolute} style={{ marginTop: 10 }}>
           Apply Absolute Range
         </Button>
       </div>

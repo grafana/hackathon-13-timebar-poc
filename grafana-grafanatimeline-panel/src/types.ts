@@ -1,7 +1,4 @@
-type SeriesSize = 'sm' | 'md' | 'lg';
-
-export interface SimpleOptions {
-  text: string;
-  showSeriesCount: boolean;
-  seriesCountSize: SeriesSize;
+export interface PanelOptions {
+  /** How many times wider than the selection the initial/reset context window is. */
+  contextZoomFactor: number;
 }

@@ -1,40 +1,14 @@
 import { PanelPlugin } from '@grafana/data';
-import { SimpleOptions } from './types';
+import { PanelOptions } from './types';
 import { SimplePanel } from './components/SimplePanel';
+import { CONTEXT_ZOOM_FACTOR } from './timebar/timeModel';
 
-export const plugin = new PanelPlugin<SimpleOptions>(SimplePanel).setPanelOptions((builder) => {
-  return builder
-    .addTextInput({
-      path: 'text',
-      name: 'Simple text option',
-      description: 'Description of panel option',
-      defaultValue: 'Default value of text input option',
-    })
-    .addBooleanSwitch({
-      path: 'showSeriesCount',
-      name: 'Show series counter',
-      defaultValue: false,
-    })
-    .addRadio({
-      path: 'seriesCountSize',
-      defaultValue: 'sm',
-      name: 'Series counter size',
-      settings: {
-        options: [
-          {
-            value: 'sm',
-            label: 'Small',
-          },
-          {
-            value: 'md',
-            label: 'Medium',
-          },
-          {
-            value: 'lg',
-            label: 'Large',
-          },
-        ],
-      },
-      showIf: (config) => config.showSeriesCount,
-    });
-});
+export const plugin = new PanelPlugin<PanelOptions>(SimplePanel).setPanelOptions((builder) =>
+  builder.addSliderInput({
+    path: 'contextZoomFactor',
+    name: 'Context zoom factor',
+    description: 'How many times wider than the selection the initial/reset context window is.',
+    defaultValue: CONTEXT_ZOOM_FACTOR,
+    settings: { min: 2, max: 32, step: 1 },
+  })
+);

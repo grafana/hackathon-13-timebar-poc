@@ -4,8 +4,8 @@
   "name": "Grafana-Timeline-Panel",
   "id": "grafana-grafanatimeline-panel",
   "info": {
-    "keywords": ["panel"],
-    "description": "",
+    "keywords": ["panel", "time", "timebar", "navigation"],
+    "description": "Spatial time navigation: a zoomed-out context window with a brushed selection that drives the dashboard time range.",
     "author": {
       "name": "Grafana"
     },

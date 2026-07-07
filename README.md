@@ -28,5 +28,10 @@ https://github.com/user-attachments/assets/092082a3-3747-404a-ac87-566acd19275a
  - Visual History: Show past selected time ranges visually 
 
 ## About Code
-**Don't look at it** ;-) This is largely AI/hackathon code, and is panel instead of a proper component, and we are hacking an overlay ontop of uPlot instead of working with uPlot more directly. So this is a hack to get an interactive PoC of the idea.
+This started as hackathon/AI code (a single 580-line panel hacking a ref-flag state machine over a uPlot
+overlay). It has since been refactored into three testable layers — a pure time-math model, a
+`useReducer` state machine, and a presentational `<TimeBar>` component, with the panel as a thin adapter.
+See [`ARCHITECTURE.md`](grafana-grafanatimeline-panel/ARCHITECTURE.md) for the design and the state/event
+model. It is still a panel (not yet a core Scenes component) and still overlays uPlot rather than driving
+it fully natively — see ARCHITECTURE.md for what remains.
 [Dashboard JSON used in video](https://github.com/user-attachments/files/21001198/Time.bar-1751381534278.json)
